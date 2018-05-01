@@ -34,7 +34,7 @@ __Niveau **5**__ : 20 à 30 caractères minuscules (avec ou sans accent), majusc
 Bon courage \N{SMILING FACE WITH HORNS}"""
 
 commandes = {"blague": "`!blague` pour avoir une blague au hasard parmis celles que je connais et `!blague add <Votre blague.>` pour m'en apprendre une nouvelle (mettre un `|` pour que je fasse une pause au moment de raconter votre blague)",
-             "chr": "`!chr <code>` je renvois le caractère correspondant au code Unicode donné (au format décimal)",
+             "unicode": "`!unicode <code>` je renvois le caractère correspondant au code Unicode donné (au format décimal)",
              "citation": "`!citation` pour avoir une citation au hasard parmis celles que je connais et `!citation add <Votre citation.>` pour m'en apprendre une nouvelle",
              "crypto": "`!crypto <nom>` pour avoir des infos sur l'état actuel de la crypto monnaie",
              "date": "la date d'aujourd'hui, tout simplement ^^",
@@ -46,7 +46,7 @@ commandes = {"blague": "`!blague` pour avoir une blague au hasard parmis celles 
              "heure": "l'heure, tout simplement ^^",
              "lmgtfy": "Let Me Google That For You, je fais une recherche sur Internet pour toi",
              "loc": "Lines Of Code : je te dis combien de lignes comporte actuellement mon programme Python",
-             "weather": "`!weather <ville> <jours>` pour avoir les prévisions météo de la ville pendant un certain nombre de jour (un nombre entre 1 et 7)",
+             "mute": "**uniquement pour les modérateurs**\n`!mute <@utilisateur> <temps><s|m|h|j> <motif>` pour mute temporairement quelqu'un",
              "ping": "tester la vitesse connection avec le bot",
              "proverbe": "`!proverbe` pour avoir un proverbe au hasard parmis ceux que je connais et `!proverbe add <Votre proverbe.>` pour m'en apprendre un nouveau",
              "r2d": "`!r2d <nombre en chiffres romains>` pour convertir un nombre en chiffres romains en un nombre en chiffres décimaux",
@@ -57,11 +57,13 @@ commandes = {"blague": "`!blague` pour avoir une blague au hasard parmis celles 
              "vps": "quelques infos sur le VPS qui m'héberge",
              "rug": "Random User Generator, une identité aléatoire",
              "ud": "`!ud <mot>` pour chercher la définition d'un mot sur Urban Dictionnary (en anglais)",
-             "unicode": "`!unicode <c>` où c est n'importe quel caractère pour avoir le nom et le code Unicode de ce caractère",
+             "chr": "`!chr <c>` où `<c>` est n'importe quel caractère pour avoir le nom et le code Unicode de ce caractère",
              "user": "`!user @mention` quelques infos sur la personne",
              "w3w": "`!w3w <mot1.mot2.mot3> [langue]` pour avoir les coordonnées GPS et l'adresse d'un lieu à partir des ses trois mots what3words. La langue est le code ISO 639-1 de deux lettres coorespondant. Ce paramètre est facultatif si les mots sont français. Plus d'infos sur https://what3words.com/fr/a-propos/",
+             "weather": "`!weather <ville> <jours>` pour avoir les prévisions météo de la ville pendant un certain nombre de jour (un nombre entre 1 et 7)",
              "whois": "`!whois <nom de domaine>` pour avoir queqlues infos sur un nom de domaine",
-             "wiki": "`!wiki <recherche>` pour effectuer une recherche sur Wikipédia et avoir la première phrase de l'article"}
+             "wiki": "`!wiki <recherche>` pour effectuer une recherche sur Wikipédia et avoir la première phrase de l'article",
+             "youtube": "`!youtube <nom de la chaîne>` pour avoir les statistiques de cette chaîne."}
 
 caracteres = ['abcdefghijklmnopqrstuvwxyz',
               'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz',
@@ -202,6 +204,42 @@ def getUrl(url) :
     result = unescape(result.read().decode("utf-8"))
     return json.loads(result)
 
+def joliStr(n):
+
+  if isinstance(n, float) :
+    ent, dec = str(n).split(".")
+    ent = int(ent)
+  elif isinstance(n, str) :
+    if "." in n :
+      ent, dec = n.split(".")
+      ent = int(ent)
+    else : ent, dec = int(n), ""
+  else : 
+    ent = n
+    dec = 0
+
+  result = ""
+  while ent >= 1000:
+    ent, r = divmod(ent, 1000)
+    result = " " + str(r) + result
+  result = str(ent) + result
+
+  if dec :
+    result += "," 
+    i = 0
+    while i < len(dec):
+      try :
+        result += dec[i]
+        result += dec[i+1]
+        result += dec[i+2]
+        result += " "
+      except IndexError : pass
+      i += 3
+  return result    
+
+
+
+
 try :
     """
     async def actu():
@@ -237,30 +275,39 @@ try :
     async def on_message(message):
         try:
             if message.author == client.user : return
+
+            if message.content == "!reboot" and message.author == ribt :
+                  with open("log/erreurs.txt","a") as f : f.write(time.strftime('[%d/%m/%Y %H:%M:%S]') + "Tux va tenter de redemarrer sur demande de ribt\n")
+                  cmd = popen("python3 tux.py &")
+                  exit()
             
             if message.server == None :
-                if message.content == "!reboot" and message.author == ribt :
-                    with open("log/erreurs.txt","a") as f : f.write(time.strftime('[%d/%m/%Y %H:%M:%S]') + "Tux va tenter de redemarrer sur demande de ribt\n")
-                    cmd = popen("python3 tux.py &")
-                    exit()
-                else : await client.send_message(message.author, 'Je ne répond pas au MP désolé \N{HEAVY BLACK HEART}')
+                await client.send_message(message.author, 'Je ne répond pas au MP désolé \N{HEAVY BLACK HEART}')
                 return
 
-            
             global log, tmp, ancienmsg, loader, chaine, nbr, coups, vies, mot, aff
             #print (message.content)
             t = timegm(message.timestamp.timetuple())
             msg = message.content
+            args = msg.split(" ")
             serv = message.server.id
             txt = time.strftime('\n[%H:%M:%S] #', time.localtime(t)) + str(message.channel) + ' ' + str(message.author) + ' : ' + msg
             if log != time.strftime("log/%Y%m%d", time.localtime()): log = time.strftime("log/%Y%m%d", time.localtime())
             with open(log,"a") as f : f.write(txt)
+            with open("mute.json", "r") as f : mute = json.loads(f.read())
 
-            if message.author.top_role.name == "VilainPasBeau" :
-                await client.delete_message(message)
-                await client.send_message(message.author, 'Chut !')
-
+            if message.author.id in mute :
+                if mute[message.author.id]['expires'] < time.time() :
+                    del mute[message.author.id]
+                    with open("mute.json", "w") as f : f.write(json.dumps(mute, indent=4))
+                    await client.remove_roles(message.author, discord.utils.get(message.server.roles, name='VilainPasBeau'))
+                elif not "modo" in [role.name for role in message.author.roles] :    
+                    await client.delete_message(message)
+                    await client.send_message(message.author, "Il te reste encore " + str(round(mute[message.author.id]['expires'] - time.time())) + " secondes pour réfléchir à ce que tu as fait.")
             else :
+                if message.author.top_role.name == "VilainPasBeau" :
+                    await client.remove_roles(message.author, discord.utils.get(message.server.roles, name='VilainPasBeau'))
+                    
                 if search(r"(?i)^ah?\W*$", msg) :
                     await client.send_message(message.channel, 'tchoum')
 
@@ -294,7 +341,7 @@ try :
                         embed = discord.Embed(title="Description de la commande !" + commande + " :", description=commandes[commande], color=0x00ff00)
                         await client.send_message(message.channel, embed=embed)
                     else :
-                        await client.send_message(message.channel, "Elle existe pas cette commande là ^^")
+                        await client.send_message(message.channel, "Pas de description pour cette commande...")
 
                 elif msg == '!roll' :
                     await client.send_message(message.channel, str(random.randint(0, 100)))
@@ -371,7 +418,6 @@ try :
                         await client.add_reaction(message, u"\N{WHITE HEAVY CHECK MARK}")
 
                 elif  msg.startswith('!wiki'):
-                    args = msg.split(" ")
                     if len(args) < 2 : await client.send_message(message.channel, "Usage : `!wiki <recherche>`.")
                     else :
                         req = quote_plus(" ".join(args[1:]))
@@ -609,7 +655,6 @@ try :
                     if serv in mot : await client.send_message(message.channel, " ".join(aff[serv]).replace("_", r"\_"))
                 
                 elif msg.startswith("!role") :
-                    args = msg.split(" ")
                     if len(args) < 2 : await client.send_message(message.channel, "Usage : `!role <list|add|remove> [rôle]` (`!help role` pour plus de détails)")
                     elif args[1] == "list" :
                         txt = "__Liste des rôles disponibles :__\n\n"
@@ -643,7 +688,6 @@ try :
                     else : await client.send_message(message.channel, "Usage : `!role <list|add|remove> [rôle]` (`!help role` pour plus de détails)")
 
                 elif msg.startswith("!w3w"):
-                    args = msg.split(" ")
                     if len(args) < 2 or len(args) > 3 : await client.send_message(message.channel, "Usage : `!w3w <mot1.mot2.mot3> [langue]` (`!help w3w` pour plus de détails)")
                     else :
                         url = "https://api.what3words.com/v2/forward?addr=" + quote_plus(args[1]) + "&key=" + secret["w3w-key"] + "&format=json&display=minimal"
@@ -660,7 +704,6 @@ try :
                             await client.send_message(message.channel, "adresse complète : " + adresse['formatedFull'])
 
                 elif msg.startswith("!gps"):
-                    args = msg.split(" ")
                     if len(args) != 2 : await client.send_message(message.channel, "Usage : `!gps <latitude,longitude>` (`!help gps` pour plus de détails)")
                     lat, lng = args[1].split(",")
                     url = "https://api.what3words.com/v2/reverse?coords=" + lat + "," + lng + "&key=" + secret["w3w-key"] + "&lang=fr&format=json&display=minimal"
@@ -687,7 +730,6 @@ try :
 
 
                 elif msg.startswith("!lmgtfy") or msg.startswith("!lmqtfy") or msg.startswith("!qwant"):
-                    args = msg.split(" ")
                     if len(args) < 2 : await client.send_message(message.channel, "Usage : `" + args[0] + " <recherche>` (`!help " + args[0][1:] + "` pour plus de détails)")
                     else :
                         recherche = " ".join(args[1:])
@@ -701,14 +743,13 @@ try :
                             txt += "Voilà, voilà..."
                             await client.send_message(message.channel, txt)
 
-                elif msg.startswith("!unicode") :
+                elif msg.startswith("!chr") :
                     if len(msg) != 10 : await client.send_message(message.channel, "Usage : `!unicode <c>` (`!help unicode` pour plus de détails)")
                     else :
                         c = msg[9]
                         await client.send_message(message.channel, "Le caractère `" + c + "` répond au doux nom de **" + name(c) + "** et son code Unicode est **" + str(ord(c)) + "**.")
 
-                elif msg.startswith("!chr") :
-                    args = msg.split(" ")
+                elif msg.startswith("!unicode") :
                     if len(args) != 2 : await client.send_message(message.channel, "Usage : `!chr <code>` (`!help chr` pour plus de détails)")
                     else :
                         try :
@@ -719,10 +760,9 @@ try :
                 elif msg == "!loc" :
                     l = popen("wc -l tux.py").read().split(" ")[0]
                     s = popen("ls -lh tux.py").read().split(" ")[4] + "o"
-                    await client.send_message(message.channel, "Mon code source (écrit en Python) comporte actuellement " + l + " lignes (" + s + ").")
+                    await client.send_message(message.channel, "Mon code source (écrit en Python) comporte actuellement " + joliStr(l) + " lignes (" + s + ").")
 
                 elif msg.startswith("!crypto") :
-                    args = msg.split(" ")
                     if len(args) < 2 : await client.send_message(message.channel, "Usage : `!crypto <nom de la monnaie>`")
                     else :
                         req = " ".join(args[1:]).lower()
@@ -733,15 +773,15 @@ try :
                                 cid = i["id"]
                         if cid :
                             data = getUrl("https://api.coinmarketcap.com/v1/ticker/" + cid + "/?convert=EUR")[0]
-                            txt = "**valeur :** " + data["price_eur"] + "€ (" + data["price_usd"] + "$ ou encore " + data["price_btc"] + "\u20BF)\n"
-                            if data["percent_change_1h"][0] != "-" : data["percent_change_1h"] = "+" + data["percent_change_1h"]
-                            txt += "**évolution depuis 1h :** " + data["percent_change_1h"] + "%\n"
-                            if data["percent_change_24h"][0] != "-" : data["percent_change_24h"] = "+" + data["percent_change_24h"]
-                            txt += "**évolution depuis 24h :** " + data["percent_change_24h"] + "%\n"
-                            if data["percent_change_7d"][0] != "-" : data["percent_change_7d"] = "+" + data["percent_change_7d"]
-                            txt +="**évolution depuis une semaine :** " + data["percent_change_7d"] + "%\n"
-                            txt += "**volume (24h) :** " + data["24h_volume_eur"] + "€\n"
-                            if data["market_cap_eur"] : txt +="**capitalisation boursière :** " + data["market_cap_eur"] + " €"
+                            txt = "**valeur :** " + joliStr(data["price_eur"]) + " € (" + joliStr(data["price_usd"]) + " $ ou encore " + joliStr(data["price_btc"]) + " \u20BF)\n"
+                            if data["percent_change_1h"][0] != "-" : data["percent_change_1h"] = "+" + joliStr(data["percent_change_1h"])
+                            txt += "**évolution depuis 1 h :** " + data["percent_change_1h"] + " %\n"
+                            if data["percent_change_24h"][0] != "-" : data["percent_change_24h"] = "+" + joliStr(data["percent_change_24h"])
+                            txt += "**évolution depuis 24 h :** " + data["percent_change_24h"] + " %\n"
+                            if data["percent_change_7d"][0] != "-" : data["percent_change_7d"] = "+" + joliStr(data["percent_change_7d"])
+                            txt +="**évolution depuis une semaine :** " + data["percent_change_7d"] + " %\n"
+                            txt += "**volume (24 h) :** " + joliStr(data["24h_volume_eur"]) + " €\n"
+                            if data["market_cap_eur"] : txt +="**capitalisation boursière :** " + joliStr(data["market_cap_eur"]) + " €"
                             embed=discord.Embed(title=data["name"] + " (" + data["symbol"] + ")", description=txt, color=0x00ff00)
                             await client.send_message(message.channel, embed=embed)
                         else : await client.send_message(message.channel, "Je n'ai pas trouvé cette crypto-monnaie...")
@@ -772,6 +812,51 @@ try :
                 elif msg == '!haddock':
                     with open("haddock.txt","r") as f : c = f.read().split('\n')
                     await client.send_message(message.channel, random.choice(c))
+
+                elif "modo" in [role.name for role in message.author.roles] and msg.startswith("!mute") :
+                    try :
+                        user = message.mentions[0]
+                        if args[2][-1] == "s" : temps = int(args[2][:-1])
+                        elif args[2][-1] == "m" : temps = int(args[2][:-1])*60
+                        elif args[2][-1] == "h" : temps = int(args[2][:-1])*3600
+                        elif args[2][-1] == "j" : temps = int(args[2][:-1])*3600*24
+                        motif = " ".join(args[3:])
+                        with open("mute.json", "r") as f : mute = json.loads(f.read())
+                        mute[user.id] = {}
+                        mute[user.id]['time'] = args[2]
+                        mute[user.id]['by'] = message.author.name
+                        mute[user.id]['expires'] = time.time() + temps
+                        mute[user.id]['motif'] = motif
+                        with open("mute.json", "w") as f : f.write(json.dumps(mute, indent=4))
+                        await client.add_roles(user, discord.utils.get(message.server.roles, name='VilainPasBeau'))
+                    except Exception : await client.send_message(message.channel, "Usage : `!mute <@utilisateur> <temps><s|m|h|j> <motif>`")
+                    await client.add_reaction(message, u"\N{WHITE HEAVY CHECK MARK}")
+                    await client.send_message(user, "Tu a été mute pendant " + args[2] + " par **" + message.author.name + "** pour le motif suivant : *" + motif + "*.")
+
+                elif msg.startswith("!youtube") :
+                  if len(args) == 1 : await client.send_message(message.channel, "`!youtube <nom de la chaîne>` pour avoir les statistiques de cette chaîne.")
+                  chaine = " ".join(args[1:])
+                  recherche = getUrl("https://www.googleapis.com/youtube/v3/search?part=snippet&maxResults=1&type=channel&q=" + quote_plus(chaine) + "&key=" + secret["google-key"])["items"]
+                  if recherche == [] : await client.send_message(message.channel, "Aucun résultat...")
+                  else :
+                    channelId = recherche[0]["id"]["channelId"]
+                    data = getUrl("https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&id=" + channelId + "&key=" + secret["google-key"])["items"]
+                    data = data[0]
+                    em = discord.Embed(title=data["snippet"]["title"], colour=0x00ff00)
+                    em.set_image(url=data["snippet"]["thumbnails"]["high"]["url"])
+                    em.add_field(name="id :", value=data["id"], inline=True)
+                    em.add_field(name="description :", value=data["snippet"]["description"], inline=True)
+                    em.add_field(name="date de création de la chaîne :", value=data["snippet"]["publishedAt"].replace("T", " à ")[:-5], inline=True)
+                    if "country" in data["snippet"] : em.add_field(name="pays :", value=data["snippet"]["country"], inline=True)
+                    if not data["statistics"]["hiddenSubscriberCount"] :
+                      em.add_field(name="nombre total de vues :", value=joliStr(data["statistics"]["viewCount"]), inline=True)
+                      em.add_field(name="nombre d'abonnés :", value=joliStr(data["statistics"]["subscriberCount"]), inline=True)
+                      em.add_field(name="nombre de vidéos :", value=joliStr(data["statistics"]["videoCount"]), inline=True)
+                      em.add_field(name="nombre de commentaires postés :", value=joliStr(data["statistics"]["commentCount"]), inline=True)
+                    await client.send_message(message.channel, embed=em)
+
+                        
+                    
                     
                     
                     
