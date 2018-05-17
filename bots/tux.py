@@ -16,26 +16,12 @@ import feedparser
 import codecs
 import speedtest
 from unicodedata import name
-
-fast = """```  ______        _   
- |  ____|      | |  
- | |__ __ _ ___| |_ 
- |  __/ _` / __| __|
- | | | (_| \__ \ |_ 
- |_|  \__,_|___/\__|```
- """
-
-aide_fast = fast +  u"""**Fast** est un jeu où vous devez retaper la chaîne de caractères choisie par le bot le plus rapidement possible. Faites `!fast <niveau>` pour déclancher le début du jeu.
-__Niveau **1**__ : 10 à 20 caractères minuscules
-__Niveau **2**__ : 10 à 20 caractères minuscules ou majuscules
-__Niveau **3**__ : 10 à 20 caractères minuscules (avec ou sans accent), majuscules ou numériques
-__Niveau **4**__ : 10 à 20 caractères minuscules (avec ou sans accent), majuscules, numériques ou spéciaux
-__Niveau **5**__ : 20 à 30 caractères minuscules (avec ou sans accent), majuscules, numériques ou spéciaux
-Bon courage \N{SMILING FACE WITH HORNS}"""
+from hashlib import sha256
+from variables import fast, aide_fast, caracteres, feeds, pendu
 
 commandes = {"blague": "`!blague` pour avoir une blague au hasard parmis celles que je connais et `!blague add <Votre blague.>` pour m'en apprendre une nouvelle (mettre un `|` pour que je fasse une pause au moment de raconter votre blague)",
-             "unicode": "`!unicode <code>` je renvois le caractère correspondant au code Unicode donné (au format décimal)",
              "citation": "`!citation` pour avoir une citation au hasard parmis celles que je connais et `!citation add <Votre citation.>` pour m'en apprendre une nouvelle",
+             "chr": "`!chr <c>` où `<c>` est n'importe quel caractère pour avoir le nom et le code Unicode de ce caractère",
              "crypto": "`!crypto <nom>` pour avoir des infos sur l'état actuel de la crypto monnaie",
              "date": "la date d'aujourd'hui, tout simplement ^^",
              "devine": "un super jeu ! (je choisis un nombre entre 0 et 100 et tu dois le deviner)",
@@ -57,7 +43,7 @@ commandes = {"blague": "`!blague` pour avoir une blague au hasard parmis celles 
              "vps": "quelques infos sur le VPS qui m'héberge",
              "rug": "Random User Generator, une identité aléatoire",
              "ud": "`!ud <mot>` pour chercher la définition d'un mot sur Urban Dictionnary (en anglais)",
-             "chr": "`!chr <c>` où `<c>` est n'importe quel caractère pour avoir le nom et le code Unicode de ce caractère",
+             "unicode": "`!unicode <code>` je renvois le caractère correspondant au code Unicode donné (au format décimal)",
              "user": "`!user @mention` quelques infos sur la personne",
              "w3w": "`!w3w <mot1.mot2.mot3> [langue]` pour avoir les coordonnées GPS et l'adresse d'un lieu à partir des ses trois mots what3words. La langue est le code ISO 639-1 de deux lettres coorespondant. Ce paramètre est facultatif si les mots sont français. Plus d'infos sur https://what3words.com/fr/a-propos/",
              "weather": "`!weather <ville> <jours>` pour avoir les prévisions météo de la ville pendant un certain nombre de jour (un nombre entre 1 et 7)",
@@ -65,135 +51,8 @@ commandes = {"blague": "`!blague` pour avoir une blague au hasard parmis celles 
              "wiki": "`!wiki <recherche>` pour effectuer une recherche sur Wikipédia et avoir la première phrase de l'article",
              "youtube": "`!youtube <nom de la chaîne>` pour avoir les statistiques de cette chaîne."}
 
-caracteres = ['abcdefghijklmnopqrstuvwxyz',
-              'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz',
-              'ABCDEFGHIJKLMNOPQRSTUVWXYZaàbcçdeêëéèfghijklmnopqrstuùvwxyz0123456789',
-              'ABCDEFGHIJKLMNOPQRSTUVWXYZaàbcçdeêëéèfghijklmnopqrstuùvwxyz0123456789&"#\'{([-|_\\)]°+=}$*?,.;/:!']
-
-feeds = ["https://korben.info/feed",
-         "https://www.begeek.fr/feed",
-         "http://blogmotion.fr/feed",
-         "http://www.framboise314.fr/feed/", "http://www.journaldugeek.com/feed/",
-         "https://thehackernews.com/feeds/posts/default",
-         "https://usbeketrica.com/rss",
-         "https://www.lemondeinformatique.fr/flux-rss/",
-         "http://www.01net.com/rss/actualites/"]
-
 with open("wordlist/courants.txt", "r") as f : mots = f.read().split("\n")
 with open("secret.json", "r") as f : secret = json.loads(f.read())
-
-pendu = ["""```
-                       
-                        
-                        
-                         
-                          
-                          
-                         
-                        
-         
-        ============```""", """```
-            
-           ||          
-           ||          
-           ||          
-           ||         
-           ||         
-           ||
-           ||
-           ||
-        ============```""",
-          """```
-            ============
-           ||        
-           ||        
-           ||       
-           ||       
-           ||        
-           ||
-           ||
-           ||
-        ============```""",
-          """```
-            ============
-           ||  /      
-           || /       
-           ||/       
-           ||       
-           ||       
-           ||
-           ||
-           ||
-        ============```""",
-          """```
-            ============
-           ||  /      |
-           || /       |
-           ||/        
-           ||        
-           ||        
-           ||
-           ||
-           ||
-        ============```""",
-          """```
-            ============
-           ||  /      |
-           || /       |
-           ||/        O
-           ||         |
-           ||        
-           ||
-           ||
-           ||
-        ============```""",
-          """```
-            ============
-           ||  /      |
-           || /       |
-           ||/        O/
-           ||         |
-           ||        
-           ||
-           ||
-           ||
-        ============```""",
-          r"""```
-            ============
-           ||  /      |
-           || /       |
-           ||/       \O/
-           ||         |
-           ||        
-           ||
-           ||
-           ||
-        ============```""",
-          r"""```
-            ============
-           ||  /      |
-           || /       |
-           ||/       \O/
-           ||         |
-           ||          \
-           ||
-           ||
-           ||
-        ============```""",
-          r"""```
-            ============
-           ||  /      |
-           || /       |
-           ||/       \O/
-           ||         |
-           ||        / \
-           ||
-           ||
-           ||
-        ============```"""]
-
-
-          
 
 chaine, nbr, coups, ancienmsg, PartieP, mot, aff, vies = {},{},{},{},{},{},{},{}
 tmp = log = None
@@ -221,7 +80,11 @@ def joliStr(n):
   result = ""
   while ent >= 1000:
     ent, r = divmod(ent, 1000)
-    result = " " + str(r) + result
+    if ent > 0 and r < 100 :
+      if r < 10 : result = " 00" + str(r) + result
+      else : result = " 0" + str(r) + result
+    else : result = " " + str(r) + result
+
   result = str(ent) + result
 
   if dec :
@@ -236,8 +99,6 @@ def joliStr(n):
       except IndexError : pass
       i += 3
   return result    
-
-
 
 
 try :
@@ -270,6 +131,15 @@ try :
             txt = time.strftime('[%d/%m/%Y %H:%M:%S]\n', time.localtime()) + format_exc() + "\n\n"
             with open("log/erreurs.txt","a") as f : f.write(txt)
 
+    @client.event
+    async def on_member_join(member):
+      with open("config.json", "r") as f : config = json.loads(f.read())
+      if member.server.id in config and "mp_accueil" in config[member.server.id] :
+         await client.send_message(member, config[member.server.id]["mp_accueil"])
+
+    @client.event
+    async def on_member_remove(member):
+      await client.send_message(discord.utils.get(member.server.channels, name='accueil'), "Au revoir **" + member.name + "** \N{WAVING HAND SIGN}")
 
     @client.event
     async def on_message(message):
@@ -282,7 +152,26 @@ try :
                   exit()
             
             if message.server == None :
-                await client.send_message(message.author, 'Je ne répond pas au MP désolé \N{HEAVY BLACK HEART}')
+                if message.content.startswith("!flag") :
+                    args = message.content.split(" ")
+                    if len(args) != 2: await client.send_message(message.channel, "Usage : `!flag <le_flag_d-un_defi>`.")
+                    else : 
+                        hashed = sha256(bytes(args[1], "utf-8")).hexdigest()
+                        with open("flags.json", "r") as f : flags = json.loads(f.read())
+                        if hashed in flags :
+                          n = flags[hashed]["defi"]
+                          pts = flags[hashed]["points"]
+                          userId = message.author.id
+                          with open("score.json", "r") as f : score = json.loads(f.read())
+                          if not userId in score : score[userId] = {"points": 0, "reussis": []}
+                          if n in score[userId]["reussis"] : await client.send_message(message.author, "Tu as déjà réussi ce défi !")
+                          else :
+                            score[userId]["points"] += pts
+                            score[userId]["reussis"].append(n)
+                            with open("score.json", "w") as f : f.write(json.dumps(score, indent=4))
+                            await client.send_message(message.author, 'Ceci est bien le flag du défi n°' + str(n) + ", tu gagnes " + str(pts) + " points !")
+                        else : await client.send_message(message.author, 'Mauvais flag, essaie encore \N{WINKING FACE}')
+                else : await client.send_message(message.author, 'Je ne répond pas au MP désolé \N{HEAVY BLACK HEART}')
                 return
 
             global log, tmp, ancienmsg, loader, chaine, nbr, coups, vies, mot, aff
@@ -744,13 +633,13 @@ try :
                             await client.send_message(message.channel, txt)
 
                 elif msg.startswith("!chr") :
-                    if len(msg) != 10 : await client.send_message(message.channel, "Usage : `!unicode <c>` (`!help unicode` pour plus de détails)")
+                    if len(args) != 2 : await client.send_message(message.channel, "Usage : `!chr <c>` (`!help chr` pour plus de détails)")
                     else :
-                        c = msg[9]
+                        c = args[1]
                         await client.send_message(message.channel, "Le caractère `" + c + "` répond au doux nom de **" + name(c) + "** et son code Unicode est **" + str(ord(c)) + "**.")
 
                 elif msg.startswith("!unicode") :
-                    if len(args) != 2 : await client.send_message(message.channel, "Usage : `!chr <code>` (`!help chr` pour plus de détails)")
+                    if len(args) != 2 : await client.send_message(message.channel, "Usage : `!unicode <code>` (`!help unicode` pour plus de détails)")
                     else :
                         try :
                             c = chr(int(args[1]))
@@ -854,8 +743,21 @@ try :
                       em.add_field(name="nombre de vidéos :", value=joliStr(data["statistics"]["videoCount"]), inline=True)
                       em.add_field(name="nombre de commentaires postés :", value=joliStr(data["statistics"]["commentCount"]), inline=True)
                     await client.send_message(message.channel, embed=em)
+                elif msg.startswith("!code") :
+                  await client.send_message(message.channel, " Mon code source (en Python) : https://github.com/ribt/ceux-qui-savent-coder-mais-qu-ont-pas-d-idees/blob/master/bots/tux.py")
 
-                        
+                elif msg.startswith("!score"):
+                  if len(message.mentions) == 1 :
+                    with open("score.json", "r") as f : score = json.loads(f.read())
+                    userId = message.mentions[0].id
+                    if not userId in score : await client.send_message(message.channel, message.mentions[0].mention + " n'a réussi aucun défi donc son score est logiquement de zéro...")
+                    else : await client.send_message(message.channel, "Le score de " + message.mentions[0].mention + " est actuellement de " + str(score[userId]["points"]) + " points \N{GRINNING FACE WITH SMILING EYES}")
+                  else : await client.send_message(message.channel, "Usage : `!score @quelqu'un`")
+
+                elif msg == "!ecris" :
+                    await client.send_typing(message.channel)
+
+                  
                     
                     
                     
