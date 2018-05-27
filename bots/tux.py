@@ -5,7 +5,7 @@ from calendar import timegm
 from datetime import date
 import random
 from traceback import format_exc
-from re import search
+from re import match
 from urllib.request import urlopen, Request
 from urllib.parse import quote_plus
 import json
@@ -24,6 +24,7 @@ commandes = {"blague": "`!blague` pour avoir une blague au hasard parmis celles 
              "chr": "`!chr <c>` où `<c>` est n'importe quel caractère pour avoir le nom et le code Unicode de ce caractère",
              "crypto": "`!crypto <nom>` pour avoir des infos sur l'état actuel de la crypto monnaie",
              "date": "la date d'aujourd'hui, tout simplement ^^",
+             "defis": "cette commande va de paire avec https://ribt.fr/defis/ \n`!defis` pour avoir le leaderboard et `!defis @quelqu'un` pour avoir le détail pour une personne.",
              "devine": "un super jeu ! (je choisis un nombre entre 0 et 100 et tu dois le deviner)",
              "fast": aide_fast,
              "gif": "`!gif <recherche>` pour chercher un GIF (une recherche vide donne un GIF aléatoire)",
@@ -197,14 +198,23 @@ try :
                 if message.author.top_role.name == "VilainPasBeau" :
                     await client.remove_roles(message.author, discord.utils.get(message.server.roles, name='VilainPasBeau'))
                     
-                if search(r"(?i)^ah?\W*$", msg) :
+                if match(r"(?i)^ah?\W*$", msg) :
                     await client.send_message(message.channel, 'tchoum')
 
-                if search(r"(?i)^[kq]u?oi?\W*$", msg) :
+                if match(r"(?i)^[kq]u?oi?\W*$", msg) :
                     await client.send_message(message.channel, 'ffeur')
 
-                elif search(r"(?i)^lol\W*$", msg) :
+                elif match(r"(?i)^lol\W*$", msg) :
                     await client.send_message(message.channel, 'ita')
+
+                elif match(r"(?i)^hein\W*$", msg):
+                  await client.send_message(message.channel, 'deux')
+                """
+                elif match(r"^[0-9+/() *-]+$", msg):
+                  result = str(eval(msg))
+                  if result != msg : await client.send_message(message.channel, result)
+                """
+
                 
                 if msg == "" : pass
 
@@ -452,7 +462,7 @@ try :
                         else :
                             coups[serv] = {}
                             nbr[serv] = random.randint(0, 100)
-                            await client.send_message(message.channel, "C'est parti mon kiki !")
+                            await client.send_message(message.channel, "C'est parti mon kiki ! (devine mon nombre)")
                 elif serv in nbr and message.channel.name == "spam-bot" :
                     try : proposition = int(msg)
                     except ValueError : pass
@@ -746,16 +756,43 @@ try :
                 elif msg.startswith("!code") :
                   await client.send_message(message.channel, " Mon code source (en Python) : https://github.com/ribt/ceux-qui-savent-coder-mais-qu-ont-pas-d-idees/blob/master/bots/tux.py")
 
-                elif msg.startswith("!score"):
-                  if len(message.mentions) == 1 :
-                    with open("score.json", "r") as f : score = json.loads(f.read())
-                    userId = message.mentions[0].id
-                    if not userId in score : await client.send_message(message.channel, message.mentions[0].mention + " n'a réussi aucun défi donc son score est logiquement de zéro...")
-                    else : await client.send_message(message.channel, "Le score de " + message.mentions[0].mention + " est actuellement de " + str(score[userId]["points"]) + " points \N{GRINNING FACE WITH SMILING EYES}")
-                  else : await client.send_message(message.channel, "Usage : `!score @quelqu'un`")
-
                 elif msg == "!ecris" :
-                    await client.send_typing(message.channel)
+                  await client.delete_message(message)
+                  await client.send_typing(message.channel)
+
+                elif msg.startswith("!defis"):
+                  with open("score.json", "r") as f : score = json.loads(f.read())
+                  with open("flags.json", "r") as f : l = len(json.loads(f.read()))
+                  if len(args) == 1 :
+                    leaders = []
+                    for i in range(5):
+                      best = 0
+                      tmp = ""
+                      for userId in score :
+                        if score[userId]["points"] >= best and not userId in leaders:
+                          best = score[userId]["points"]
+                          tmp = userId
+                      leaders.append(tmp)
+                    txt = ""
+                    for leader in leaders:
+                      txt += str(leaders.index(leader)+1) + ". "
+                      txt += "**" + discord.utils.get(message.server.members, id=leader).name + "** "
+                      txt += str(score[leader]["points"]) + " pts ("
+                      txt += str(round(len(score[leader]["reussis"])/l*100)) + " %) \n"
+                    await client.send_message(message.channel, txt)
+                  elif len(message.mentions) == 1 :
+                    userId = message.mentions[0].id
+                    if not userId in score : await client.send_message(message.channel, "**" + message.mentions[0].name + "** n'a réussi aucun défi donc son score est logiquement de zéro...")
+                    else :
+                      txt = "Le score de **" + message.mentions[0].name + "** est actuellement de " + str(score[userId]["points"]) + " points (il a réussi les défis suivants : "
+                      for i in score[userId]["reussis"]:
+                        txt += str(i)
+                        if score[userId]["reussis"].index(i) != len(score[userId]["reussis"])-1 : txt += ", "
+                      txt += ")."
+                      await client.send_message(message.channel, txt)
+                  else : await client.send_message(message.channel, "Usage : `!defis` pour avoir le leaderboard et `!defis @quelqu'un` pour avoir le détail pour une personne.")
+
+
 
                   
                     
@@ -785,6 +822,10 @@ except Exception :
     with open("log/erreurs.txt","a") as f : f.write(txt)
     time.sleep(60*10)
     with open("log/erreurs.txt","a") as f : f.write(time.strftime('[%d/%m/%Y %H:%M:%S]') + "Tux va tenter de redemarrer\n")
+popen("python3 tux.py &")
+        
+
+with open("log/erreurs.txt","a") as f : f.write(time.strftime('[%d/%m/%Y %H:%M:%S]') + "Tux va tenter de redemarrer\n")
 popen("python3 tux.py &")
         
 
