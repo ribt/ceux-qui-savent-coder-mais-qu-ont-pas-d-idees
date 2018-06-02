@@ -17,6 +17,7 @@ import codecs
 import speedtest
 from unicodedata import name
 from hashlib import sha256
+import qrcode
 from variables import fast, aide_fast, caracteres, feeds, pendu
 
 commandes = {"blague": "`!blague` pour avoir une blague au hasard parmis celles que je connais et `!blague add <Votre blague.>` pour m'en apprendre une nouvelle (mettre un `|` pour que je fasse une pause au moment de raconter votre blague)",
@@ -36,6 +37,7 @@ commandes = {"blague": "`!blague` pour avoir une blague au hasard parmis celles 
              "mute": "**uniquement pour les modérateurs**\n`!mute <@utilisateur> <temps><s|m|h|j> <motif>` pour mute temporairement quelqu'un",
              "ping": "tester la vitesse connection avec le bot",
              "proverbe": "`!proverbe` pour avoir un proverbe au hasard parmis ceux que je connais et `!proverbe add <Votre proverbe.>` pour m'en apprendre un nouveau",
+             "qr": "`!qr <du blabla>` pour faire un QR code avec les données",
              "r2d": "`!r2d <nombre en chiffres romains>` pour convertir un nombre en chiffres romains en un nombre en chiffres décimaux",
              "role": "`!role <list|add|remove> [rôle1] [rôle2] [rôle3] ...` pour vous ajouter, supprimer ou lister tous les rôles disponibles",
              "roll": "un nombre (pseudo-)aléatoire entre 0 et 100",
@@ -170,7 +172,15 @@ try :
                             score[userId]["points"] += pts
                             score[userId]["reussis"].append(n)
                             with open("score.json", "w") as f : f.write(json.dumps(score, indent=4))
-                            await client.send_message(message.author, 'Ceci est bien le flag du défi n°' + str(n) + ", tu gagnes " + str(pts) + " points !")
+                            
+                            serv = discord.utils.get(client.servers, id="401667451189985280")
+                            role = discord.utils.get(serv.roles, name="défi-"+str(n))
+                            member = discord.utils.find(lambda m: m.name == message.author.name, serv.members)
+                            await client.add_roles(member, role)
+
+                            await client.send_message(message.author, 'Ceci est bien le flag du défi n°' + str(n) + ", tu gagnes " + str(pts) + " points ! Tu peux désormais accéder au channel solutions pour regarder comment les autres ont fait et pour poster ta solution.")
+                            await client.send_message(client.get_channel("451818508389580801"), "**" + message.author.name + "** a réussi le défi n°" + str(n) + " (il gagne " + str(pts) + " points).")
+
                         else : await client.send_message(message.author, 'Mauvais flag, essaie encore \N{WINKING FACE}')
                 else : await client.send_message(message.author, 'Je ne répond pas au MP désolé \N{HEAVY BLACK HEART}')
                 return
@@ -209,6 +219,9 @@ try :
 
                 elif match(r"(?i)^hein\W*$", msg):
                   await client.send_message(message.channel, 'deux')
+
+                elif match(r"(?i)^trois\W*$", msg):
+                  await client.send_message(message.channel, 'soleil')
                 """
                 elif match(r"^[0-9+/() *-]+$", msg):
                   result = str(eval(msg))
@@ -217,6 +230,10 @@ try :
 
                 
                 if msg == "" : pass
+
+                elif msg.startswith('!flag'):
+                  await client.delete_message(message)
+                  await client.send_message(message.author, "Envoie-moi le flag **PAR MP** sinon tout le monde reçoit une notif avec la réponse \N{TIRED FACE}")
 
                 elif msg == '!ping':
                     tmp = time.time() * 1000 - t * 1000
@@ -765,15 +782,15 @@ try :
                   with open("flags.json", "r") as f : l = len(json.loads(f.read()))
                   if len(args) == 1 :
                     leaders = []
-                    for i in range(5):
+                    for i in range(10):
                       best = 0
-                      tmp = ""
+                      tmp = None
                       for userId in score :
                         if score[userId]["points"] >= best and not userId in leaders:
                           best = score[userId]["points"]
                           tmp = userId
-                      leaders.append(tmp)
-                    txt = ""
+                      if tmp != None : leaders.append(tmp)
+                    txt = "classement de https://ribt.fr/defis/ :\n\n"
                     for leader in leaders:
                       txt += str(leaders.index(leader)+1) + ". "
                       txt += "**" + discord.utils.get(message.server.members, id=leader).name + "** "
@@ -791,6 +808,13 @@ try :
                       txt += ")."
                       await client.send_message(message.channel, txt)
                   else : await client.send_message(message.channel, "Usage : `!defis` pour avoir le leaderboard et `!defis @quelqu'un` pour avoir le détail pour une personne.")
+
+                elif msg.startswith("!qr"):
+                  if len(args) == 1 : await client.send_message(message.channel, "Usage : `!qr <du texte>`.")
+                  else :
+                    data = " ".join(args[1:])
+                    qrcode.make(data).save("qr.png")
+                    await client.send_file(message.channel, "qr.png")
 
 
 
