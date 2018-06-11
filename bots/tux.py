@@ -244,7 +244,7 @@ try :
 
                 elif msg == '!help':
                     txt = "__Liste des commandes disponibles :__\n\n(faire `!help <commande>` pour avoir toutes les infos sur une comande)\n\n"
-                    for commande in commandes.keys() : txt += "- `!" + commande + "`\n"
+                    for commande in sorted(commandes.keys()) : txt += "- `!" + commande + "`\n"
                     txt += "\n**Cette liste est en constante évolution : n'hésitez pas à revenir la consulter régulièrement !**"
                     if message.channel.name == "spam-bot" : await client.send_message(message.channel, txt)
                     else :
