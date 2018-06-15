@@ -18,7 +18,7 @@ import speedtest
 from unicodedata import name
 from hashlib import sha256
 import qrcode
-from variables import fast, aide_fast, caracteres, feeds, pendu
+from variables import fast, aide_fast, caracteres, feeds, pendu, ytCategories
 
 commandes = {"blague": "`!blague` pour avoir une blague au hasard parmis celles que je connais et `!blague add <Votre blague.>` pour m'en apprendre une nouvelle (mettre un `|` pour que je fasse une pause au moment de raconter votre blague)",
              "citation": "`!citation` pour avoir une citation au hasard parmis celles que je connais et `!citation add <Votre citation.>` pour m'en apprendre une nouvelle",
@@ -52,7 +52,7 @@ commandes = {"blague": "`!blague` pour avoir une blague au hasard parmis celles 
              "weather": "`!weather <ville> <jours>` pour avoir les prévisions météo de la ville pendant un certain nombre de jour (un nombre entre 1 et 7)",
              "whois": "`!whois <nom de domaine>` pour avoir queqlues infos sur un nom de domaine",
              "wiki": "`!wiki <recherche>` pour effectuer une recherche sur Wikipédia et avoir la première phrase de l'article",
-             "youtube": "`!youtube <nom de la chaîne>` pour avoir les statistiques de cette chaîne."}
+             "youtube": "`!youtube <nom de la vidéo ou de la chaîne à chercher>` pour avoir plein d'infos sur cette vidéo/chaîne."}
 
 with open("wordlist/courants.txt", "r") as f : mots = f.read().split("\n")
 with open("secret.json", "r") as f : secret = json.loads(f.read())
@@ -749,27 +749,55 @@ try :
                     await client.add_reaction(message, u"\N{WHITE HEAVY CHECK MARK}")
                     await client.send_message(user, "Tu a été mute pendant " + args[2] + " par **" + message.author.name + "** pour le motif suivant : *" + motif + "*.")
 
-                elif msg.startswith("!youtube") :
-                  if len(args) == 1 : await client.send_message(message.channel, "`!youtube <nom de la chaîne>` pour avoir les statistiques de cette chaîne.")
-                  chaine = " ".join(args[1:])
-                  recherche = getUrl("https://www.googleapis.com/youtube/v3/search?part=snippet&maxResults=1&type=channel&q=" + quote_plus(chaine) + "&key=" + secret["google-key"])["items"]
-                  if recherche == [] : await client.send_message(message.channel, "Aucun résultat...")
-                  else :
-                    channelId = recherche[0]["id"]["channelId"]
-                    data = getUrl("https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&id=" + channelId + "&key=" + secret["google-key"])["items"]
-                    data = data[0]
-                    em = discord.Embed(title=data["snippet"]["title"], colour=0x00ff00)
-                    em.set_image(url=data["snippet"]["thumbnails"]["high"]["url"])
-                    em.add_field(name="id :", value=data["id"], inline=True)
-                    em.add_field(name="description :", value=data["snippet"]["description"], inline=True)
-                    em.add_field(name="date de création de la chaîne :", value=data["snippet"]["publishedAt"].replace("T", " à ")[:-5], inline=True)
-                    if "country" in data["snippet"] : em.add_field(name="pays :", value=data["snippet"]["country"], inline=True)
-                    if not data["statistics"]["hiddenSubscriberCount"] :
-                      em.add_field(name="nombre total de vues :", value=joliStr(data["statistics"]["viewCount"]), inline=True)
-                      em.add_field(name="nombre d'abonnés :", value=joliStr(data["statistics"]["subscriberCount"]), inline=True)
-                      em.add_field(name="nombre de vidéos :", value=joliStr(data["statistics"]["videoCount"]), inline=True)
-                      em.add_field(name="nombre de commentaires postés :", value=joliStr(data["statistics"]["commentCount"]), inline=True)
-                    await client.send_message(message.channel, embed=em)
+                elif msg.startswith("!youtube") or msg.startswith("!yt") or msg.startswith("!ytb") :
+                     if len(args) == 1 : await client.send_message(message.channel, "`!youtube <nom de la chaîne>` pour avoir les statistiques de cette chaîne.")
+                     else :
+                        txt = " ".join(args[1:])
+                        recherche = getUrl("https://www.googleapis.com/youtube/v3/search?part=snippet&maxResults=1&q=" + quote_plus(txt) + "&key=" + secret["google-key"])["items"][0]["id"]
+                        if recherche == [] : await client.send_message(message.channel, "Aucun résultat...")
+                        else :
+                          if recherche["kind"] == "youtube#channel" :
+                            channelId = recherche["channelId"]
+                            data = getUrl("https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&id=" + channelId + "&key=" + secret["google-key"])["items"][0]
+                            em = discord.Embed(title=data["snippet"]["title"], colour=0x00ff00)
+                            em.set_image(url=data["snippet"]["thumbnails"]["high"]["url"])
+                            em.add_field(name="id :", value=data["id"], inline=True)
+                            em.add_field(name="description :", value=data["snippet"]["description"], inline=True)
+                            em.add_field(name="date de création de la chaîne :", value=data["snippet"]["publishedAt"].replace("T", " à ")[:-5], inline=True)
+                            if "country" in data["snippet"] : em.add_field(name="pays :", value=data["snippet"]["country"], inline=True)
+                            if not data["statistics"]["hiddenSubscriberCount"] :
+                              em.add_field(name="nombre total de vues :", value=joliStr(data["statistics"]["viewCount"]), inline=True)
+                              em.add_field(name="nombre d'abonnés :", value=joliStr(data["statistics"]["subscriberCount"]), inline=True)
+                              em.add_field(name="nombre de vidéos :", value=joliStr(data["statistics"]["videoCount"]), inline=True)
+                              em.add_field(name="nombre de commentaires postés :", value=joliStr(data["statistics"]["commentCount"]), inline=True)
+                              em.add_field(name="lien :", value="https://www.youtube.com/channel/"+channelId, inline=True)
+                              await client.send_message(message.channel, embed=em)
+                          elif recherche["kind"] == "youtube#video" :
+                            videoId = recherche["videoId"]
+                            data = getUrl("https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics,contentDetails&id=" + videoId + "&key=" + secret["google-key"])["items"][0]
+                            em = discord.Embed(title=data["snippet"]["title"], colour=0x00ff00)
+                            em.set_image(url=data["snippet"]["thumbnails"]["high"]["url"])
+                            em.add_field(name="id :", value=data["id"], inline=True)
+                            em.add_field(name="description :", value=data["snippet"]["description"], inline=True)
+                            em.add_field(name="tags :", value=", ".join(data["snippet"]["tags"]), inline=True)
+                            em.add_field(name="date de publication :", value=data["snippet"]["publishedAt"].replace("T", " à ")[:-5], inline=True)
+                            em.add_field(name="nom de la chaîne :", value=data["snippet"]["channelTitle"], inline=True)
+                            if "country" in data["snippet"] : em.add_field(name="pays :", value=data["snippet"]["country"], inline=True)
+                            em.add_field(name="nombre de vues :", value=joliStr(data["statistics"]["viewCount"]), inline=True)
+                            pourcent = round(int(data["statistics"]["likeCount"])*100/(int(data["statistics"]["likeCount"])+int(data["statistics"]["dislikeCount"])),2)
+                            em.add_field(name="nombre de likes :", value=joliStr(data["statistics"]["likeCount"]) + " (" + str(pourcent) + "%)", inline=True)
+                            em.add_field(name="nombre de dislikes :", value=joliStr(data["statistics"]["dislikeCount"]) + " (" + str(round(100-pourcent, 2)) + "%)", inline=True)
+                            em.add_field(name="nombre de commentaires :", value=joliStr(data["statistics"]["commentCount"]), inline=True)
+                            em.add_field(name="résolution :", value=data["contentDetails"]["definition"].upper(), inline=True)
+                            em.add_field(name="dimension :", value=data["contentDetails"]["dimension"].upper(), inline=True)
+                            em.add_field(name="projection :", value=data["contentDetails"]["projection"], inline=True)
+                            em.add_field(name="catégorie :", value=ytCategories[data["snippet"]["categoryId"]], inline=True)
+                            if data["contentDetails"]["licensedContent"] : em.add_field(name="contenu sous licence :", value="oui", inline=True)
+                            else : em.add_field(name="contenu sous licence :", value="non", inline=True)
+                            em.add_field(name="lien :", value="https://www.youtube.com/watch?v="+videoId, inline=True)
+                            await client.send_message(message.channel, embed=em)
+                          else : await client.send_message(message.channel, "Aucun résultat...")
+
                 elif msg.startswith("!code") :
                   await client.send_message(message.channel, " Mon code source (en Python) : https://github.com/ribt/ceux-qui-savent-coder-mais-qu-ont-pas-d-idees/blob/master/bots/tux.py")
 
