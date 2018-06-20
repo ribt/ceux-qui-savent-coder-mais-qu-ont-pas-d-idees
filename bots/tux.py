@@ -5,12 +5,13 @@ from calendar import timegm
 from datetime import date
 import random
 from traceback import format_exc
-from re import match
+from re import match, search
 from urllib.request import urlopen, Request
 from urllib.parse import quote_plus
 import json
 from html import unescape
 from os import popen
+from glob import glob
 from sys import exit
 import feedparser
 import codecs
@@ -56,6 +57,7 @@ commandes = {"blague": "`!blague` pour avoir une blague au hasard parmis celles 
 
 with open("wordlist/courants.txt", "r") as f : mots = f.read().split("\n")
 with open("secret.json", "r") as f : secret = json.loads(f.read())
+with open("pokemons-trad.json", "r") as f : pokeTrad = json.loads(f.read())
 
 chaine, nbr, coups, ancienmsg, PartieP, mot, aff, vies = {},{},{},{},{},{},{},{}
 tmp = log = None
@@ -67,7 +69,6 @@ def getUrl(url) :
     return json.loads(result)
 
 def joliStr(n):
-
   if isinstance(n, float) :
     ent, dec = str(n).split(".")
     ent = int(ent)
@@ -762,7 +763,9 @@ try :
                             em = discord.Embed(title=data["snippet"]["title"], colour=0x00ff00)
                             em.set_image(url=data["snippet"]["thumbnails"]["high"]["url"])
                             em.add_field(name="id :", value=data["id"], inline=True)
-                            em.add_field(name="description :", value=data["snippet"]["description"], inline=True)
+                            desc = data["snippet"]["description"]
+                            if len(desc) < 1000 : em.add_field(name="description :", value=desc, inline=True)
+                            else : em.add_field(name="description :", value=desc[:1000]+"\n\n[...]", inline=True)
                             em.add_field(name="date de création de la chaîne :", value=data["snippet"]["publishedAt"].replace("T", " à ")[:-5], inline=True)
                             if "country" in data["snippet"] : em.add_field(name="pays :", value=data["snippet"]["country"], inline=True)
                             if not data["statistics"]["hiddenSubscriberCount"] :
@@ -778,16 +781,20 @@ try :
                             em = discord.Embed(title=data["snippet"]["title"], colour=0x00ff00)
                             em.set_image(url=data["snippet"]["thumbnails"]["high"]["url"])
                             em.add_field(name="id :", value=data["id"], inline=True)
-                            em.add_field(name="description :", value=data["snippet"]["description"], inline=True)
+                            desc = data["snippet"]["description"]
+                            if len(desc) < 1000 : em.add_field(name="description :", value=desc, inline=True)
+                            else : em.add_field(name="description :", value=desc[:1000]+"\n\n[...]", inline=True)
                             em.add_field(name="tags :", value=", ".join(data["snippet"]["tags"]), inline=True)
                             em.add_field(name="date de publication :", value=data["snippet"]["publishedAt"].replace("T", " à ")[:-5], inline=True)
                             em.add_field(name="nom de la chaîne :", value=data["snippet"]["channelTitle"], inline=True)
                             if "country" in data["snippet"] : em.add_field(name="pays :", value=data["snippet"]["country"], inline=True)
                             em.add_field(name="nombre de vues :", value=joliStr(data["statistics"]["viewCount"]), inline=True)
-                            pourcent = round(int(data["statistics"]["likeCount"])*100/(int(data["statistics"]["likeCount"])+int(data["statistics"]["dislikeCount"])),2)
-                            em.add_field(name="nombre de likes :", value=joliStr(data["statistics"]["likeCount"]) + " (" + str(pourcent) + "%)", inline=True)
-                            em.add_field(name="nombre de dislikes :", value=joliStr(data["statistics"]["dislikeCount"]) + " (" + str(round(100-pourcent, 2)) + "%)", inline=True)
-                            em.add_field(name="nombre de commentaires :", value=joliStr(data["statistics"]["commentCount"]), inline=True)
+                            if "likeCount" in data["statistics"] :
+                                pourcent = round(int(data["statistics"]["likeCount"])*100/(int(data["statistics"]["likeCount"])+int(data["statistics"]["dislikeCount"])),2)
+                                em.add_field(name="nombre de likes :", value=joliStr(data["statistics"]["likeCount"]) + " (" + str(pourcent) + "%)", inline=True)
+                                em.add_field(name="nombre de dislikes :", value=joliStr(data["statistics"]["dislikeCount"]) + " (" + str(round(100-pourcent, 2)) + "%)", inline=True)
+                            if "commentCount" in data["statistics"] :
+                                em.add_field(name="nombre de commentaires :", value=joliStr(data["statistics"]["commentCount"]), inline=True)
                             em.add_field(name="résolution :", value=data["contentDetails"]["definition"].upper(), inline=True)
                             em.add_field(name="dimension :", value=data["contentDetails"]["dimension"].upper(), inline=True)
                             em.add_field(name="projection :", value=data["contentDetails"]["projection"], inline=True)
@@ -844,6 +851,14 @@ try :
                     qrcode.make(data).save("qr.png")
                     await client.send_file(message.channel, "qr.png")
 
+                elif msg.startswith("!pokemon"):
+                  pokemons = glob("pokemons/*.gif")
+                  file = random.choice(pokemons)
+                  name = search(r"pokemons\/([a-z]+)(-[a-z]+)?\.gif", file).group(1)
+                  await client.send_file(message.channel, file, filename=name+".gif", content="Et ton pokémon est... **" + pokeTrad[name] + "** !")
+
+
+
 
 
                   
@@ -873,11 +888,11 @@ except Exception :
     txt = "\n\n##########[ERREUR FATALE]##########\n" + time.strftime('[%d/%m/%Y %H:%M:%S]') + format_exc() + "\n\n"
     with open("log/erreurs.txt","a") as f : f.write(txt)
     time.sleep(60*10)
-    with open("log/erreurs.txt","a") as f : f.write(time.strftime('[%d/%m/%Y %H:%M:%S]') + "Tux va tenter de redemarrer\n")
+    with open("log/erreurs.txt","a") as f : f.write(time.strftime('[%d/%m/%Y %H:%M:%S]') + " Tux va tenter de redemarrer\n")
 popen("python3 tux.py &")
         
 
-with open("log/erreurs.txt","a") as f : f.write(time.strftime('[%d/%m/%Y %H:%M:%S]') + "Tux va tenter de redemarrer\n")
+with open("log/erreurs.txt","a") as f : f.write(time.strftime('[%d/%m/%Y %H:%M:%S]') + " Tux va tenter de redemarrer\n")
 popen("python3 tux.py &")
         
 
