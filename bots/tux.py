@@ -216,14 +216,21 @@ try :
                 if match(r"(?i)^[kq]u?oi?\W*$", msg) :
                     await client.send_message(message.channel, 'ffeur')
 
-                elif match(r"(?i)^lol\W*$", msg) :
+                if match(r"(?i)^lol\W*$", msg) :
                     await client.send_message(message.channel, 'ita')
 
-                elif match(r"(?i)^hein\W*$", msg):
+                if match(r"(?i)^hein\W*$", msg):
                   await client.send_message(message.channel, 'deux')
 
-                elif match(r"(?i)^trois\W*$", msg):
+                if match(r"(?i)^trois\W*$", msg):
                   await client.send_message(message.channel, 'soleil')
+
+                if match(r"(?i)^oui\W*$", msg):
+                  await client.send_message(message.channel, 'stiti')
+
+                if client.user.mentioned_in(message) :
+                  await client.add_reaction(message, u"\N{WAVING HAND SIGN}")
+
                 """
                 elif match(r"^[0-9+/() *-]+$", msg):
                   result = str(eval(msg))
@@ -874,8 +881,9 @@ try :
                     elif r.group(1) == "bin" : n = int(arg.replace(" ", ""), 2)
                     elif r.group(1) == "dec" : n = int(arg.replace(" ", ""))
                     else :
+                      nchars = len(arg)
                       n = 0
-                      for lettre in arg : n += ord(lettre)
+                      for i in range(nchars) : n += ord(arg[i]) << 8*(nchars-i-1)
 
                     if r.group(2) == "hex" : await client.send_message(message.channel, str(hex(n)[2:]).upper())
                     elif r.group(2) == "bin" : await client.send_message(message.channel, str(bin(n))[2:])
