@@ -16,7 +16,7 @@ from sys import exit
 import feedparser
 import codecs
 import speedtest
-from unicodedata import name
+import unicodedata
 from hashlib import sha256
 import qrcode
 from variables import fast, aide_fast, caracteres, feeds, pendu, ytCategories
@@ -46,6 +46,7 @@ commandes = {"blague": "`!blague` pour avoir une blague au hasard parmis celles 
              "speedtest": "je me la pète un peu avec ma conexion de taré ^^",
              "vps": "quelques infos sur le VPS qui m'héberge",
              "rug": "Random User Generator, une identité aléatoire",
+             "table": "`!table <un chiffre>` pour avoir la table de multiplication du chiffre",
              "ud": "`!ud <mot>` pour chercher la définition d'un mot sur Urban Dictionnary (en anglais)",
              "unicode": "`!unicode <code>` je renvois le caractère correspondant au code Unicode donné (au format décimal)",
              "user": "`!user @mention` quelques infos sur la personne",
@@ -430,18 +431,18 @@ try :
 
                 elif msg == "!rug" :
                     data = getUrl("https://randomuser.me/api/?nat=fr")['results'][0]
-                    txt = ""
-                    txt += "Tu t'appelles " + data['name']['first'].capitalize() + " " + data['name']['last'].capitalize() + ". "
-                    txt += "Ton adresse mail est " + data['email'].replace("example.com", random.choice(["gmail.com","yahoo.com","neuf.fr","laposte.net","orange.fr","ovh.net",])) + ". "
-                    jour, heure = data['dob'].split(" ")
+                    em = discord.Embed(title=data['name']['first'].capitalize() + " " + data['name']['last'].capitalize(), colour=0x00ff00)
+                    em.set_image(url=data['picture']['large'])
+                    em.add_field(name="adresse mail :", value=data['email'].replace("example.com", random.choice(["gmail.com","yahoo.com","neuf.fr","laposte.net","orange.fr","ovh.net",])), inline=False)
+                    jour, heure = data['dob']['date'].split("T")
                     jour = jour.split("-")
-                    jour = jour[2] + "/" + jour[1] + "/" + jour[0]
-                    txt += "Tu es né le " + jour + " à " + heure + ". "
-                    txt += "Ton numéro de téléphone est le " + data['phone'].replace("-", " ") + ". "
-                    loc = data['location']
-                    txt += "Tu habites au " + loc['street'] + " à " + loc['city'].title() + ". "
-                    txt += "Ton pseudo est " + data['login']['username'] + " et ton mot de passe est `" + data['login']['password'] + "`."
-                    await client.send_message(message.channel, txt)
+                    em.add_field(name="date de naissance :", value=jour[2] + "/" + jour[1] + "/" + jour[0] + " à " + heure[:-1], inline=False)
+                    em.add_field(name="age :", value=str(data['dob']['age']) + " ans", inline=False)
+                    em.add_field(name="numéro de téléphone :", value=data['phone'].replace("-", " "), inline=False)
+                    em.add_field(name="adresse :", value=data['location']['street'] + " à " + data['location']['city'].title(), inline=False)
+                    em.add_field(name="pseudo :", value=data['login']['username'], inline=False)
+                    em.add_field(name="mot de passe :", value=data['login']['password'], inline=False)
+                    await client.send_message(message.channel, embed=em)
 
                 elif msg == "!vps" :
                     txt = ""
@@ -664,14 +665,14 @@ try :
                     if len(args) != 2 : await client.send_message(message.channel, "Usage : `!chr <c>` (`!help chr` pour plus de détails)")
                     else :
                         c = args[1]
-                        await client.send_message(message.channel, "Le caractère `" + c + "` répond au doux nom de **" + name(c) + "** et son code Unicode est **" + str(ord(c)) + "**.")
+                        await client.send_message(message.channel, "Le caractère `" + c + "` répond au doux nom de **" + unicodedata.name(c) + "** et son code Unicode est **" + str(ord(c)) + "**.")
 
                 elif msg.startswith("!unicode") :
                     if len(args) != 2 : await client.send_message(message.channel, "Usage : `!unicode <code>` (`!help unicode` pour plus de détails)")
                     else :
                         try :
                             c = chr(int(args[1]))
-                            await client.send_message(message.channel, "Le caractère correspondant au code " + args[1] + " est le suivant : `" + c + "` (" + name(c) + ").")
+                            await client.send_message(message.channel, "Le caractère correspondant au code " + args[1] + " est le suivant : `" + c + "` (" + unicodedata.name(c) + ").")
                         except (ValueError, OverflowError) : await client.send_message(message.channel, "Aucun caractère ne correspond à ce numéro...")
 
                 elif msg == "!loc" :
@@ -855,17 +856,44 @@ try :
                   pokemons = glob("pokemons/*.gif")
                   file = random.choice(pokemons)
                   name = search(r"pokemons\/([a-z]+)(-[a-z]+)?\.gif", file).group(1)
-                  await client.send_file(message.channel, file, filename=name+".gif", content="Et ton pokémon est... **" + pokeTrad[name] + "** !")
+                  await client.send_file(message.channel, file, content="Et ton pokémon est... **" + pokeTrad[name] + "** !")
+
+                elif msg.startswith("!table"):
+                  try : n = int(args[1])
+                  except : await client.send_message(message.channel, "Usage : `!table <un chiffre>`.")
+                  txt = "__La table de **" + str(n) + "** :__\n\n"
+                  for i in range(1, 11):
+                    txt += str(n) + " \N{MULTIPLICATION SIGN} " + str(i) + " = " + str(i*n) + "\n"
+                  await client.send_message(message.channel,  txt)
+
+                elif match("!(hex|bin|dec|ascii)2(hex|bin|dec|ascii)", msg):
+                  r = match("!(hex|bin|dec|ascii)2(hex|bin|dec|ascii)", msg)
+                  arg = " ".join(args[1:])
+                  try :
+                    if r.group(1) == "hex" : n = int(arg.replace(" ", ""), 16)
+                    elif r.group(1) == "bin" : n = int(arg.replace(" ", ""), 2)
+                    elif r.group(1) == "dec" : n = int(arg.replace(" ", ""))
+                    else :
+                      n = 0
+                      for lettre in arg : n += ord(lettre)
+
+                    if r.group(2) == "hex" : await client.send_message(message.channel, str(hex(n)[2:]).upper())
+                    elif r.group(2) == "bin" : await client.send_message(message.channel, str(bin(n))[2:])
+                    elif r.group(2) == "dec" : await client.send_message(message.channel, n)
+                    else :
+                      txt = ""
+                      size = 1
+                      boucle = True
+                      while boucle:
+                        try :
+                          for i in (n).to_bytes(size, 'big') : txt += chr(i)
+                          boucle = False
+                        except OverflowError : size += 1
+                      await client.send_message(message.channel, txt)
+                  except : await client.send_message(message.channel, "Une erreur s'est produite, vérifiez vos arguments.")
 
 
 
-
-
-                  
-                    
-                    
-                    
-                    
 
 
 
