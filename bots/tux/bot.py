@@ -755,7 +755,7 @@ try :
                           else : await client.send_message(message.channel, "Aucun résultat...")
 
                 elif msg.startswith("!code") :
-                  await client.send_message(message.channel, " Mon code source (en Python) : https://github.com/ribt/ceux-qui-savent-coder-mais-qu-ont-pas-d-idees/blob/master/bots/tux.py")
+                  await client.send_message(message.channel, " Mon code source (en Python) : https://github.com/ribt/ceux-qui-savent-coder-mais-qu-ont-pas-d-idees/blob/master/bots/tux/bot.py")
 
                 elif msg == "!ecris" :
                   await client.delete_message(message)
