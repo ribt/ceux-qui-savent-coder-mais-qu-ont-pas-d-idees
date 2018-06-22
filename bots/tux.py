@@ -6,10 +6,9 @@ from datetime import date
 import random
 from traceback import format_exc
 from re import match, search
-from urllib.request import urlopen, Request
+from urllib.request import urlopen
 from urllib.parse import quote_plus
 import json
-from html import unescape
 from os import popen
 from glob import glob
 from sys import exit
@@ -20,6 +19,7 @@ import unicodedata
 from hashlib import sha256
 import qrcode
 from variables import fast, aide_fast, caracteres, feeds, pendu, ytCategories
+from fonctions import joliStr, getUrl
 
 commandes = {"blague": "`!blague` pour avoir une blague au hasard parmis celles que je connais et `!blague add <Votre blague.>` pour m'en apprendre une nouvelle (mettre un `|` pour que je fasse une pause au moment de raconter votre blague)",
              "citation": "`!citation` pour avoir une citation au hasard parmis celles que je connais et `!citation add <Votre citation.>` pour m'en apprendre une nouvelle",
@@ -61,65 +61,9 @@ with open("secret.json", "r") as f : secret = json.loads(f.read())
 with open("pokemons-trad.json", "r") as f : pokeTrad = json.loads(f.read())
 
 chaine, nbr, coups, ancienmsg, PartieP, mot, aff, vies = {},{},{},{},{},{},{},{}
-tmp = log = None
+tmp = log = None 
 
-def getUrl(url) :
-    req = Request(url, headers={'User-Agent': "Je n'suis pas un robot (enfin si mais un gentil ^^) !"})
-    result = urlopen(req)
-    result = unescape(result.read().decode("utf-8"))
-    return json.loads(result)
-
-def joliStr(n):
-  if isinstance(n, float) :
-    ent, dec = str(n).split(".")
-    ent = int(ent)
-  elif isinstance(n, str) :
-    if "." in n :
-      ent, dec = n.split(".")
-      ent = int(ent)
-    else : ent, dec = int(n), ""
-  else : 
-    ent = n
-    dec = 0
-
-  result = ""
-  while ent >= 1000:
-    ent, r = divmod(ent, 1000)
-    if ent > 0 and r < 100 :
-      if r < 10 : result = " 00" + str(r) + result
-      else : result = " 0" + str(r) + result
-    else : result = " " + str(r) + result
-
-  result = str(ent) + result
-
-  if dec :
-    result += "," 
-    i = 0
-    while i < len(dec):
-      try :
-        result += dec[i]
-        result += dec[i+1]
-        result += dec[i+2]
-        result += " "
-      except IndexError : pass
-      i += 3
-  return result    
-
-
-try :
-    """
-    async def actu():
-        await client.wait_until_ready()
-        channel = discord.Object(id='420635603592413185')
-        while not client.is_closed:
-            dernier = time.time()
-            await asyncio.sleep(10*60) # 10 minutes
-            for feed in feeds :
-                rss = feedparser.parse(feed)
-                for i in rss['entries'] :
-                    if timegm(i['published_parsed']) > dernier :
-                        await client.send_message(channel, i['link'])
-    """        
+try :    
     client = discord.Client()
             
     @client.event
@@ -153,7 +97,7 @@ try :
 
             if message.content == "!reboot" and message.author == ribt :
                   with open("log/erreurs.txt","a") as f : f.write(time.strftime('[%d/%m/%Y %H:%M:%S]') + "Tux va tenter de redemarrer sur demande de ribt\n")
-                  cmd = popen("python3 tux.py &")
+                  cmd = popen("./restart-tux.sh")
                   exit()
             
             if message.server == None :
@@ -247,9 +191,6 @@ try :
                 elif msg == '!ping':
                     tmp = time.time() * 1000 - t * 1000
                     await client.send_message(message.channel, 'Pong ! ('+str(round(tmp,1))+' ms)')
-
-                elif (msg == "Recherche d'un GIF..." or msg == "Recherche du meilleur serveur...") and message.author.id == client.user.id :
-                    loader = message
 
                 elif msg == '!help':
                     txt = "__Liste des commandes disponibles :__\n\n(faire `!help <commande>` pour avoir toutes les infos sur une comande)\n\n"
@@ -759,7 +700,7 @@ try :
                     await client.send_message(user, "Tu a été mute pendant " + args[2] + " par **" + message.author.name + "** pour le motif suivant : *" + motif + "*.")
 
                 elif msg.startswith("!youtube") or msg.startswith("!yt") or msg.startswith("!ytb") :
-                     if len(args) == 1 : await client.send_message(message.channel, "`!youtube <nom de la chaîne>` pour avoir les statistiques de cette chaîne.")
+                     if len(args) == 1 : await client.send_message(message.channel, "Usage : `!youtube <nom de la vidéo ou de la chaîne à chercher>`.")
                      else :
                         txt = " ".join(args[1:])
                         recherche = getUrl("https://www.googleapis.com/youtube/v3/search?part=snippet&maxResults=1&q=" + quote_plus(txt) + "&key=" + secret["google-key"])["items"][0]["id"]
@@ -925,10 +866,8 @@ except Exception :
     with open("log/erreurs.txt","a") as f : f.write(txt)
     time.sleep(60*10)
     with open("log/erreurs.txt","a") as f : f.write(time.strftime('[%d/%m/%Y %H:%M:%S]') + " Tux va tenter de redemarrer\n")
-popen("python3 tux.py &")
+popen("./restart-tux.sh")
         
 
 with open("log/erreurs.txt","a") as f : f.write(time.strftime('[%d/%m/%Y %H:%M:%S]') + " Tux va tenter de redemarrer\n")
-popen("python3 tux.py &")
-        
-
+popen("./restart-tux.sh")
