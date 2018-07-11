@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 #-*- coding: utf-8 -*-
 
+import traceback
+import os
 import math
 import requests
 import discord
@@ -10,19 +12,21 @@ from calendar import timegm
 from datetime import date
 import random
 from traceback import format_exc
-from re import search
+from re import match, search
 from urllib.request import urlopen, Request
 from urllib.parse import quote_plus
 import json
+from glob import glob
 from html import unescape
 from os import popen
 from sys import exit
 import codecs
 import speedtest
-from unicodedata import name
+import unicodedata
 import qrcode
-
-
+from discord.ext import commands
+if not discord.opus.is_loaded():
+    discord.opus.load_opus('opus')
 ###################################
 #                                 #
 #Programme principal du bot Botahn#
@@ -43,14 +47,21 @@ description = """Bonjour,je suis Botahn,le bot de ce serveur.Voici une liste des
 /wiki <recherche>
 /dé
 /daily
+/create
+/profil <mention facultative>
 /money
+/pokemon
+/reset
 /roll <nombre de faces>
 /avatar <@mention>
+/youtube <recherche>
 /role disponible uniquement sur le serveur d'origine de Botahn
 /bar
 /cnf pour un Chuck Norris Fact
+/music_help
 /savoir
 /code
+/teaser
 /savoir add <blague,anectodes,connaissances,citations...>
 /vipinfo <@mention>
 /vipbuy"""
@@ -64,9 +75,8 @@ ema = discord.Embed(title=None, colour=0x000000)
 ema.add_field(name="Liste de commandes", value=description, inline=True)
 ema_2 = discord.Embed(title=None, colour=0x000000)
 ema_2.add_field(name="Liste de commandes VIP", value=description_2, inline=True)
-ema_3 = discord.Embed(title = 'En cas de question,de bug, de problème ou de suggestions : contactez Micmicro#9452',description = "Contactez le en MP si vous avez un serveur en commun ou utilisez `/support <message à faire passer>`. Il est possible que je ne réponde pas instantanément, je ne suis pas une machine. N'envoyez pas n'importe quoi sinon vous serez simplement ignoré par Botahn pour toutes ses commandes.",colour = 0x000000)
-ema_4=discord.Embed(title='Inviter le Bot',description="Voici 2 liens pour inviter Botahn : le premier avec le minimum de permissions si vous n'avez pas confiance en ce bot, le deuxième avec toutes les permissions.Les deux ont le même code source.\n Premier lien :https://discordapp.com/oauth2/authorize?client_id=436096950211706881&scope=bot&permissions=104201280 \nDeuxième lien :https://discordapp.com/oauth2/authorize?client_id=436096950211706881&scope=bot&permissions=2146958591\n Botahn a besoin d'un salon nommé exactement `spam-bot` pour bien fonctionner.\nInviter le bot vous permet de devenir VIP et de nommer d'autres personnes VIP,contactez moi par /support pour avoir accès à ces droits!\nN'étant encore qu'en développement et relativement inutile, je ne suis pas connecté 24h/24.",colour=0x000000)
-
+ema_3 = discord.Embed(title = 'En cas de question,de bug, de problème ou de suggestions : contactez Micmicro#9452',description = "Contactez le en MP si vous avez un serveur en commun ou utilisez `/support <message à faire passer>`. Vous pouvez inclure une invitation au serveur sur lequel vous êtes. Il est possible que je ne réponde pas instantanément, je ne suis pas une machine. N'envoyez pas n'importe quoi sinon vous serez simplement ignoré par Botahn pour toutes ses commandes.",colour = 0x000000)
+ema_4=discord.Embed(title='Inviter le Bot',description="Voici 2 liens pour inviter Botahn : le premier avec le minimum de permissions si vous n'avez pas confiance en ce bot, le deuxième avec toutes les permissions.Les deux ont le même code source.\n Premier lien :https://discordapp.com/oauth2/authorize?client_id=436096950211706881&scope=bot&permissions=104201280 \nDeuxième lien :https://discordapp.com/oauth2/authorize?client_id=436096950211706881&scope=bot&permissions=2146958591\n Botahn a besoin d'un salon nommé exactement `spam-bot` pour bien fonctionner.\nInviter le bot vous permet de devenir VIP et de nommer d'autres personnes VIP,contactez moi par /support pour avoir accès à ces droits!\nN'étant encore qu'en développement et relativement inutile, je ne suis pas connecté 24h/24.N'hésitez toutefois pas à tapez `/help` régulièrement pour voir mes nouvelles fonctions.",colour=0x000000)
 drink = """-vodka    00
 -bière    01
 -whiskey    02
@@ -114,7 +124,7 @@ def getUrl(url) :
     return json.loads(result)
 
 botahn=discord.Client()
-global fact,shifumi
+global fact,shifumi, log
 shifumi=0
 
 @botahn.event
@@ -165,6 +175,8 @@ async def on_ready():
     
 @botahn.event
 async def on_message(message):
+    msg=message.content
+    args = msg.split(' ')
     try:
         if message.server.name == 'Smart People':
             if "Frenchies" in [role.name for role in message.author.roles]:
@@ -173,8 +185,11 @@ async def on_message(message):
                 return
     except:
         pass
-    #if message.author==botahn.user: ###Ignorer le message si c'est Botahn qui l'a écrit"""
-        #return
+    if message.author.id=='436096950211706881' and message.content.startswith('```\nMusic'):
+        await botahn.delete_message(message)
+        return
+    if message.author==botahn.user:###Ignorer le message si c'est Botahn qui l'a écrit"""
+        return
     if message.server == None:
         if 'easteregg' in message.content:
             await botahn.delete_message(message)
@@ -190,9 +205,19 @@ async def on_message(message):
                 data.close()
         print(message.author)
         print(message.content)
-        await botahn.send_message(message.author,'Je ne réponds pas au MP ,désolé !')
+        try:
+            await botahn.send_message(message.author,'Je ne réponds pas au MP ,désolé !')
+        except:
+            pass
         return
-    elif ('Botahn' in message.content or '436096950211706881' in message.content) and 'café' in message.content:
+    
+    t = timegm(message.timestamp.timetuple())
+    msg = message.content
+    args = msg.split(" ")
+    serv = message.server.id
+    txt = time.strftime('\n[%H:%M:%S] #', time.localtime(t)) + str(message.channel) + ' ' + str(message.author) + ' : ' + msg
+    
+    if ('Botahn' in message.content or '436096950211706881' in message.content) and 'café' in message.content:
         await botahn.send_message(message.channel,':coffee:')
         
     elif "Mute" in [role.name for role in message.author.roles]:
@@ -201,19 +226,19 @@ async def on_message(message):
         return###Fonction Mute###
         
     ###LES MOTS BANNIS DU SERVEUR STUPID TOURNAMENTS###
-    banmot = False
-    for i in motban:
-        if i in message.content:
-            banmot = True
-    try:
-        if message.server.name=='Stupid Tournaments' and banmot ==True :
-            try:
-                await botahn.delete_message(message)
-                await botahn.send_message(message.author,"Tu as utilisé un mot interdit dans le serveur.")
-            except:
-                pass
-    except:
-        pass
+    #banmot = False
+    #for i in motban:
+        #if i in message.content:
+           # banmot = True
+    #try:
+     #   if message.server.name=='Stupid Tournaments' and banmot ==True :
+      #      try:
+     #           await botahn.delete_message(message)
+      #          await botahn.send_message(message.author,"Tu as utilisé un mot interdit dans le serveur.")
+       #     except:
+         #       pass
+   # except:
+       # pass
 
 
     ###CLEAR###
@@ -237,7 +262,7 @@ async def on_message(message):
             await botahn.delete_message(message)
         except:
             pass
-        await botahn.send_message(message.author,"Tu as trouvé l'easter egg, tu deviens un VIP si tu n'en es pas déjà un et n'en parle à personne ^^")
+        await botahn.send_message(message.author,"Tu as trouvé l'easter egg, tu deviens un VIP si tu n'en es pas déjà un et n'en parle à personne ^^ Voici en plus une 'clé' que tu enverras en MP à Micmicro ou en utilisant /support pour gagner 50.000€ sur la Botahn Bank")
         user = message.author
         data = open("vip.txt","r")
         liste = data.read().split('\n')
@@ -261,13 +286,10 @@ async def on_message(message):
             
     ###delete message###
     elif message.content.startswith('/del ') and message.author.id=='205009003653103626':
-        try:
-            msgg = message.content.replace('/del ','')
-            msg = await botahn.get_message(message.channel,msgg)
-            await botahn.delete_message(msg)
-            await botahn.delete_message(message)
-        except:
-            pass
+        msgg = message.content.replace('/del ','')
+        msg = await botahn.get_message(message.channel,msgg)
+        await botahn.delete_message(msg)
+        await botahn.delete_message(message)
     
     ###QR CODE###
     elif message.content.startswith('/qrcode '):
@@ -303,7 +325,12 @@ async def on_message(message):
             await botahn.send_message(message.channel,'''Une erreur est survenue, la commande s'utilise ainsi : `/rappel <durée en secondes> <description facultative>`''')
     
     ###VIP###
-    elif (message.author.id=='205009003653103626' or message.author.id in listevip)and message.content.startswith('/vip '):
+    elif message.content.startswith('/vip '):
+        if message.author.id=='205009003653103626' or message.author.id in listevip:
+            pass
+        else:
+            await botahn.send_message(message.channel,"Vous n'avez pas le droit de nommer quelqu'un VIP")
+            return
         try:
             user = message.mentions[0]
             data = open("vip.txt","r")
@@ -522,7 +549,7 @@ async def on_message(message):
 
     ###code###
     elif message.content=="/code":
-        await botahn.send_message(message.channel,"Mon code source en Python : https://github.com/ribt/ceux-qui-savent-coder-mais-qu-ont-pas-d-idees/blob/master/bots/Botahn.py \n*Il n'est pas forcément à jour*")
+        await botahn.send_message(message.channel,"Mon code source en Python qui fait actuellement 1300 lignes: https://github.com/ribt/ceux-qui-savent-coder-mais-qu-ont-pas-d-idees/blob/master/bots/Botahn.py \n*Il n'est pas forcément à jour*")
 
     ###FONCTION PILE OU FACE AVEC MISE(codé avec le cul bien sûr)###
     elif message.content.startswith("/flip"):
@@ -651,8 +678,6 @@ async def on_message(message):
         else:
             await botahn.send_message(message.channel,"Commande réservée aux VIP.")
             return
-        if message.content=='/love myself':
-            await botahn.send_message(message.channel,"Vous vous aimez à 100% :heart:")
         try:
             user= message.mentions[0]
             user_2 = message.mentions[1]
@@ -701,7 +726,53 @@ async def on_message(message):
             await botahn.send_message(message.channel, embed=em)
         except:
             await botahn.send_message(message.channel,"La commande s'utilise ainsi :```/love <@mention1> <@mention2>```")
-            
+
+    ###YOUTUBE (analyse du code de ribt pour comprendre et amélorier la fonction musique)###
+    elif msg.startswith("/youtube") or msg.startswith("/yt") or msg.startswith("/ytb") :
+        secret = "clé secrète filou"
+        if len(args) == 1 : await client.send_message(message.channel, "Usage : `!youtube <nom de la vidéo ou de la chaîne à chercher>`.")
+        else :
+            txt = " ".join(args[1:])
+            recherche = getUrl("https://www.googleapis.com/youtube/v3/search?part=snippet&maxResults=1&q=" + quote_plus(txt) + "&key=" + secret)["items"][0]["id"]
+            if recherche == [] : await botahn.send_message(message.channel, "Aucun résultat...")
+            else :
+                if recherche["kind"] == "youtube#channel" :
+                    channelId = recherche["channelId"]
+                    data = getUrl("https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&id=" + channelId + "&key=" + secret)["items"][0]
+                    em = discord.Embed(title="CHAINE YOUTUBE : "+data["snippet"]["title"], colour=0x00ff00)
+                    em.set_image(url=data["snippet"]["thumbnails"]["high"]["url"])
+                    em.add_field(name="ID :", value=data["id"], inline=True)
+                    desc = data["snippet"]["description"]
+                    if len(desc) < 1000 : em.add_field(name="Description :", value=desc, inline=True)
+                    else : em.add_field(name="Description :", value=desc[:1000]+"\n\n[...]", inline=True)
+                    em.add_field(name="Date de création de la chaîne :", value=data["snippet"]["publishedAt"].replace("T", " à ")[:-5], inline=True)
+                    if "country" in data["snippet"] : em.add_field(name="pays :", value=data["snippet"]["country"], inline=True)
+                    if not data["statistics"]["hiddenSubscriberCount"] :
+                        #em.add_field(name="nombre total de vues :", value=data["statistics"]["viewCount"], inline=True)
+                        #em.add_field(name="nombre d'abonnés :", value=data["statistics"]["subscriberCount"], inline=True)
+                        #em.add_field(name="nombre de vidéos :", value=data["statistics"]["videoCount"], inline=True)
+                        em.add_field(name="lien :", value="https://www.youtube.com/channel/"+channelId, inline=True)
+                        await botahn.send_message(message.channel, embed=em)
+                elif recherche["kind"] == "youtube#video" :
+                    videoId = recherche["videoId"]
+                    data = getUrl("https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics,contentDetails&id=" + videoId + "&key=" + secret)["items"][0]
+                    em = discord.Embed(title="VIDEO : " + data["snippet"]["title"], colour=0x00ff00)
+                    em.set_image(url=data["snippet"]["thumbnails"]["high"]["url"])
+                    em.add_field(name="id :", value=data["id"], inline=True)
+                    #desc = data["snippet"]["description"]
+                    #if len(desc) < 1000 : em.add_field(name="description :", value=desc, inline=True)
+                    #else : em.add_field(name="description :", value=desc[:1000]+"\n\n[...]", inline=True)
+                    #em.add_field(name="tags :", value=", ".join(data["snippet"]["tags"]), inline=True)
+                    #em.add_field(name="date de publication :", value=data["snippet"]["publishedAt"].replace("T", " à ")[:-5], inline=True)
+                    #em.add_field(name="nom de la chaîne :", value=data["snippet"]["channelTitle"], inline=True)
+                    #if "country" in data["snippet"] : em.add_field(name="pays :", value=data["snippet"]["country"], inline=True)
+                    em.add_field(name="Nombre de vues :", value=data["statistics"]["viewCount"], inline=True)
+                    if data["contentDetails"]["licensedContent"] : em.add_field(name="Contenu sous licence :", value="oui", inline=True)
+                    else : em.add_field(name="contenu sous licence :", value="non", inline=True)
+                    em.add_field(name="Lien :", value="https://www.youtube.com/watch?v="+videoId, inline=True)
+                    await botahn.send_message(message.channel, embed=em)
+                else : await botahn.send_message(message.channel, "Aucun résultat...")
+
     ###CNF###
     elif message.content =="/cnf":
             try:
@@ -735,12 +806,58 @@ async def on_message(message):
                 await botahn.send_message(message.channel, embed=em)
             except:
                 await botahn.send_message(message.channel,'Une erreur est survenue lors de votre demande')
-        
+
+    ###POKEMON EN TEST ET EN TRAVAIL###
+    elif msg.startswith("/pokemon"):
+        pokemons = glob("pokemon/*.gif")
+        file = random.choice(pokemons)
+        nom = (((((str(file).replace("pokemon",'')).replace(".gif",'')).replace('\\',''))).replace('-f',' ').replace('-',' '))
+        try:
+            nomfichier = "z"+message.author.id+".txt"
+            data = open(nomfichier,"r")
+            liste = data.read().split('\n')
+            data.close
+            if int(liste[1])>=500:
+                achat = "Si vous voulez faire de ce pokémon le vôtre pour la faible somme de 500€, réagissez avec :thumbsup:, sinon avec :thumbsdown: "+message.author.name+"."
+            else:
+                achat = "Avec 500€, vous auriez pu acquérir ce pokémon."
+        except:
+            achat = ""
+        msgpokemon = await botahn.send_file(message.channel, file, content="Un **" +nom + "** sauvage apparaît ! "+achat)
+        if achat !="" and achat!= "Avec 500€, vous auriez pu acquérir ce pokémon.":
+            await botahn.add_reaction(msgpokemon, u'\N{THUMBS UP SIGN}')
+            await botahn.add_reaction(msgpokemon, u'\N{THUMBS DOWN SIGN}')
+            res = await botahn.wait_for_reaction([u'\N{THUMBS UP SIGN}',u'\N{THUMBS DOWN SIGN}'],user = message.author,message = msgpokemon)
+            if res.reaction.emoji==u'\N{THUMBS DOWN SIGN}':
+                await botahn.edit_message(msgpokemon,"Vous n'avez pas choisi **"+nom+"** comme pokémon "+message.author.name)
+            else:
+                liste[1] = str(int(liste[1])-500)
+                profil = str(liste[2])
+                profil = profil.split('_')
+                profil[6]= nom
+                data = open(nomfichier,"w")
+                profiltxt = ""
+                for i in range(0,len(profil)-1):
+                    profiltxt =profiltxt + profil[i]+"_"
+                try:
+                    data.write(str(liste[0]) +'\n'+str(liste[1])+"\n"+str(profiltxt))
+                except:
+                    try:
+                        data.write(str(liste[0]) +'\n'+str(liste[1])+"\n"+" _ _ _ _ _ _"+nom+"_")
+                    except:
+                        await botahn.send_message(message.channel,"Tapez /money et réessayez ensuite")
+                await botahn.edit_message(msgpokemon,nom+" est maintenant votre pokémon !")
+            try:
+                await botahn.clear_reactions(msgpokemon)
+            except:
+                pass
+        else:
+            pass
+
     ###JEU SHIFUMI###
     elif message.content=="/shifumi":
-            name_1 = message.author
             em = discord.Embed(title=None, colour=0x0f00ff)
-            em.add_field(name="Shifumi",value = "Jouons ! Fais ton choix avec les réactions !",inline=True)
+            em.add_field(name="Shifumi",value = "Jouons "+message.author.name+"! Fais ton choix avec les réactions !",inline=True)
             msgembed = await botahn.send_message(message.channel, embed=em)
             await botahn.add_reaction(msgembed,u'\N{RAISED FIST}')
             await botahn.add_reaction(msgembed,u'\N{RAISED HAND}')
@@ -777,11 +894,15 @@ async def on_message(message):
                 resultat = "J'ai gagné !"
             elif coup_bot==3:
                 resultat = "J'ai perdu ..."
-            em = discord.Embed(title=None, colour=0x0f00ff)
+            em = discord.Embed(title="Shifumi de "+message.author.name, colour=0x0f00ff)
             em.add_field(name="Vous avez joué :", value=coupp, inline=None)
             em.add_field(name="J'ai joué :", value=str(coup), inline=None)
             em.add_field(name='Résultat :',value = str(resultat), inline=None)
             await botahn.edit_message(msgembed, embed=em)
+            try:
+                await botahn.clear_reactions(msgembed)
+            except:
+                pass
         
     ##JEU + OU -###
     elif message.content=="/+ou-":
@@ -795,22 +916,19 @@ async def on_message(message):
                 msg2 = await botahn.wait_for_message(author = name_2)
                 try:
                     nbr = int(msg2.content)
-                    bug = 0
-                except:
-                    bug = 1
-                if nbr >=0 and nbr <=100 and bug==0:
-                    nbrrr = nbrrr+1
-                    if nbr==nombre_deviner:
-                        em = discord.Embed(title=None, colour=0x0f005f)
-                        em.add_field(name="Jeu du plus ou moins", value="Bien joué ! Je pensais bien à `" + str(nbr) + "`\nNombre de coups : `" +str(nbrrr) + "`", inline=True)
-                        await botahn.send_message(message.channel, embed=em)
-                        verif=1
-                    elif nbr < nombre_deviner:
-                        await botahn.send_message(message.channel,"Et non,mon nombre est plus grand !")
-                    elif nbr> nombre_deviner:
-                        await botahn.send_message(message.channel,"Non ! Mon nombre est plus petit !")
-                else:
-                    await botahn.send_message(message.channel,"Le nombre doit être compris entre 0 et 100(inclus)")
+                    if nbr >=0 and nbr <=100:
+                        nbrrr = nbrrr+1
+                        if nbr==nombre_deviner:
+                            em = discord.Embed(title=None, colour=0x0f005f)
+                            em.add_field(name="Jeu du plus ou moins", value="Bien joué ! Je pensais bien à `" + str(nbr) + "`\nNombre de coups : `" +str(nbrrr) + "`", inline=True)
+                            await botahn.send_message(message.channel, embed=em)
+                            verif=1
+                        elif nbr < nombre_deviner:
+                            await botahn.send_message(message.channel,"Et non,mon nombre est plus grand !")
+                        elif nbr> nombre_deviner:
+                            await botahn.send_message(message.channel,"Non ! Mon nombre est plus petit !")
+                    else:await botahn.send_message(message.channel,"Le nombre doit être compris entre 0 et 100(inclus)")
+                except: await botahn.send_message(message.channel,"Le nombre doit être compris entre 0 et 100(inclus)")
 
     ###AVATAR###
     elif message.content.startswith('/avatar'):
@@ -822,7 +940,32 @@ async def on_message(message):
             await botahn.send_message(message.channel,embed =em)
         except:
             await botahn.send_message(message.channel,'''Une erreur est survenue''')
-            
+
+    ###ROULETTE RUSSE###
+    elif message.content=='/roulette':
+        return
+        barillet = 6
+        while True:
+            if barillet == 6:
+                lancement = str(input("Lance et continue la partie en appuyant sur Entrée "))
+            if lancement == "":
+                roulette = random.randint(1,barillet)
+                tir = random.randint(1,barillet)
+                if tir == roulette:
+                    print ("BANG! Tu es mort!")
+                    barillet = 6
+                    continue
+                else:
+                    if barillet > 2:
+                        barillet -= 1
+                        lancement = str(input("Continue, tu es toujours en vie"))
+                    else:
+                        print ("Bien joué, cowboy!")
+                        barillet = 6
+                        continue
+            else:
+                print ("Commande invalide")
+                continue
     ###USER###
     elif message.content.startswith("/user") :
         user = message.author
@@ -926,7 +1069,65 @@ async def on_message(message):
     elif message.content.startswith('/msgsend ') and message.author.id =='205009003653103626':
         msg = message.content.replace('/msgsend ','')
         await botahn.send_message(message.channel,msg)
-    
+
+    ###TEASER###
+    elif message.content=="/teaser":
+        texte = await botahn.send_message(message.channel,"La fonction /profil qui était teasé a été terminée et implantée")
+        em= discord.Embed(title="Roulette Russe de "+message.author.name,description = "Il reste encore **4** places dans le barillet. :grin: pour continuer ou :rage: pour poser le pistolet",colour = 0x008f00)
+        em.set_footer(text="Ce message est un teaser, le résultat peut différer. Il sera supprimé dans 60 secondes")
+        texte_2 = await botahn.send_message(message.channel,embed = em)
+        await asyncio.sleep(60)
+        await botahn.delete_message(texte)
+        await botahn.delete_message(texte_2)
+
+
+    ###profil de quelqu'un###
+    elif message.content.startswith("/profil"):
+        try:
+            user = message.mentions[0]
+            test=0
+        except:
+            user = message.author
+            test=1
+        try:
+            nomfichier = "z"+user.id+".txt"
+            data = open(nomfichier,"r")
+            liste = data.read().split('\n')
+            data.close
+            profiltxt = liste[2]
+            profil = profiltxt.split('_')
+            for i in range(0,len(profil)-1):
+                if profil[i]==' ':
+                    profil[i]='aucun'
+            em = discord.Embed(title="Le personnage de "+user.name,colour = 0x9f0000)
+            em.add_field(name="Chapeau :",value=profil[0],inline=True)
+            em.add_field(name="Collier :",value=profil[1],inline=True)
+            em.add_field(name="Haut :",value=profil[2],inline=True)
+            em.add_field(name="Bas :",value=profil[3],inline=True)
+            em.add_field(name="Chaussures :",value=profil[4],inline=True)
+            em.add_field(name="Accessoire :",value=profil[5],inline=True)
+            em.add_field(name="Pokemon :", value = profil[6], inline=True)
+            em.add_field(name="Argent :",value=liste[1]+"€",inline = False)
+            em.set_footer(text="Vous ne pouvez personnaliser votre profil pour l'instant, fonction en travail")
+            await botahn.send_message(message.channel,content = None,tts = None,embed = em)
+        except:
+            try:
+                data = open(nomfichier,"r")
+                liste = data.read().split('\n')
+                data.close
+                data = open(nomfichier,"w")
+                try:
+                    data.write(str(liste[0]) +'\n'+str(liste[1])+"\n"+str(liste[2]))
+                except:
+                    try:
+                        data.write(str(liste[0]) +'\n'+str(liste[1])+"\n"+" _ _ _ _ _ _ _")
+                    except:
+                        await botahn.send_message(message.channel,"Tapez /money et réessayez ensuite")
+                data.close
+                await botahn.send_message(message.channel,"Retapez la commande s'il vous plaît")
+            except:
+                await botahn.send_message(message.channel,"La personne concernée n'a pas de compte.")
+            
     ###Système d'argent###
     elif message.content.startswith('/admingive ') and message.author.id =='205009003653103626':
         give = int(message.content.split(' ')[1])
@@ -936,7 +1137,10 @@ async def on_message(message):
         liste = data.read().split('\n')
         data.close
         data = open(nomfichier,"w")
-        data.write(str(liste[0]) +'\n'+str(int(liste[1])+give))
+        try:
+            data.write(str(liste[0]) +'\n'+str(int(liste[1])+give)+"\n"+str(liste[2]))
+        except:
+            data.write(str(liste[0]) +'\n'+str(int(liste[1])+give)+"\n"+" _ _ _ _ _ _ _")
         data.close
         await botahn.send_message(message.channel,user.mention +" a reçu "+str(give)+"€ de la part de "+message.author.name)
         
@@ -968,27 +1172,74 @@ async def on_message(message):
                 em = discord.Embed(title="Botahn Bank",description = "Bravo ! Vous êtes désormais VIP et il vous reste encore **"+str(money)+"€** sur votre compte.",colour = 0xffff00)
                 await botahn.send_message(message.channel,embed = em)
                 data = open(nomfichier,"w")
-                data.write(str(liste[0]) +str(money))
+                try:
+                    data.write(str(liste[0]) +str(money)+str(liste[2]))
+                except:
+                    data.write(str(liste[0]) +"\n"+str(money)+"\n"+" _ _ _ _ _ _ _")
+
                 data.close
         except:
-            await botahn.send_message(message.channel,"Vous n'avez pas de compte "+message.author.mention+", tapez /daily ou /money pour en créer un.")
-
-    elif message.content =="/money":
+            await botahn.send_message(message.channel,"Vous n'avez pas de compte, tapez `/create` pour en créer un !")
+            
+    elif message.content.startswith("/money"):
         try:
-            nomfichier = "z"+message.author.id+".txt"
+            user = message.mentions[0]
+            test=0
+        except:
+            user = message.author
+            test=1
+        try:
+            nomfichier = "z"+user.id+".txt"
             data = open(nomfichier,"r")
             liste = data.read().split('\n')
             data.close
-            em = discord.Embed(title = "Botahn Bank",description = "Votre compte contient actuellement "+liste[1]+"€ <@"+message.author.id+">.",colour = 0xffff00)
+            em = discord.Embed(title = "Botahn Bank",description = "Votre compte contient actuellement "+liste[1]+"€ <@"+user.id+">.",colour = 0xffff00)
             await botahn.send_message(message.channel,embed = em)
+        except:
+            if test == 1:pass
+            else:
+                await botahn.send_message(message.channel,"Cet utilisateur n'a pas de compte.")
+                return
+            await botahn.send_message(message.channel,"Vous n'avez pas de compte, tapez `/create` pour en créer un !")
+
+    elif message.content =='/reset':
+        try:
+            nomfichier = "z"+message.author.id+".txt"
+            data = open(nomfichier,"r")
+            data.close
+            em = discord.Embed(title=":warning: ATTENTION "+message.author.name+" :warning:", description = "Êtes vous sûr de vouloir réinitialiser votre compte ? En cas de bug ou de problème sur votre profil, ils seront résolus mais vous perdrez toute votre progression.",colour = 0xff0000)
+            msgreset = await botahn.send_message(message.channel,embed = em)
+            await botahn.add_reaction(msgreset, u"\N{THUMBS UP SIGN}")
+            await botahn.add_reaction(msgreset, u"\N{THUMBS DOWN SIGN}")
+            res = await botahn.wait_for_reaction([u'\N{THUMBS UP SIGN}',u'\N{THUMBS DOWN SIGN}'],user = message.author,message = msgreset)
+            if res.reaction.emoji ==u'\N{THUMBS UP SIGN}':
+                data = open(nomfichier,"w")
+                data.write("0\n200\n" +" _ _ _ _ _ _ _")
+                data.close
+                await botahn.edit_message(msgreset, embed = discord.Embed(title="Votre compte a bien été réinitialisé "+message.author.name,colour = 0xff0000))
+            else:
+                await botahn.edit_message(msgreset,embed = discord.Embed(title = "Votre compte n'a pas été réinitialisé "+message.author.name,colour = 0xff0000))
+            try:
+                await botahn.clear_reactions(msgreset)
+            except:
+                pass
+        except:
+            await botahn.send_message(message.channel,"Vous n'avez pas de compte, tapez `/create` pour en créer un !")
+            
+    elif message.content== '/create':
+        try:
+            nomfichier = "z"+message.author.id+".txt"
+            data = open(nomfichier,"r")
+            data.close
+            await botahn.send_message(message.channel, 'Tu as déjà un compte à la Botahn Bank')
         except:
             nomfichier = "z"+message.author.id+".txt"
             data = open(nomfichier,"w")
-            data.write(str(time.time()) +"\n200")
+            data.write("0\n200\n" +" _ _ _ _ _ _ _")
             data.close
-            em = discord.Embed(title="**Botahn Bank**",description = "Votre compte à la Botahn Bank a bien été ouvert et a été crédité de 200€ <@"+message.author.id+">.",colour = 0xffff00)
+            em = discord.Embed(title="Botahn Bank",description = "Votre compte à la Botahn Bank a bien été ouvert et a été crédité de 200€ <@"+message.author.id+">.",colour = 0xffff00)
             await botahn.send_message(message.channel,embed = em)
-
+            
     elif message.content=='/daily':
         try:
             nomfichier = "z"+message.author.id+".txt"
@@ -996,9 +1247,12 @@ async def on_message(message):
             liste = data.read().split('\n')
             data.close
             if time.time()-float(liste[0])>86400:
-                em = discord.Embed(title="Botahn Bank",description = "Votre compte à été crédité de 50€ . Vous possédez désormais **"+str(int(liste[1])+50)+"**€ <@"+message.author.id+">.",colour = 0xffff00)
+                em = discord.Embed(title="Botahn Bank",description = "Votre compte à été crédité de **100€** . Vous possédez désormais **"+str(int(liste[1])+100)+"**€ <@"+message.author.id+">.",colour = 0xffff00)
                 data = open(nomfichier,"w")
-                data.write(str(time.time()) +"\n"+str(int(liste[1])+50))
+                try:
+                    data.write(str(time.time()) +"\n"+str(int(liste[1])+100)+"\n"+liste[2])
+                except:
+                    data.write(str(time.time()) +"\n"+str(int(liste[1])+100)+"\n"+" _ _ _ _ _ _ _ _")
                 data.close
                 await botahn.send_message(message.channel,embed=em)
             else:
@@ -1017,21 +1271,31 @@ async def on_message(message):
                 attente = heure + minute + attente
                 await botahn.send_message(message.channel,"Vous ne pouvez gagner vos intérêts qu'une fois par jour, veuillez réessayer dans "+attente+" "+message.author.mention)
         except:
-            nomfichier = "z"+message.author.id+".txt"
-            data = open(nomfichier,"w")
-            data.write(str(time.time()) +"\n200")
-            data.close
-            em = discord.Embed(title="Botahn Bank",description = "Votre compte à la Botahn Bank a bien été ouvert et a été crédité de 200€ <@"+message.author.id+">.",colour = 0xffff00)
-            await botahn.send_message(message.channel,embed = em)
+            await botahn.send_message(message.channel,"Vous n'avez pas de compte, tapez `/create` pour en créer un !")
 
-            
+###ERREUR###
+@botahn.event
+async def on_error(event, *args, **kwargs):
+    try:
+        micmicro = await botahn.get_user_info('205009003653103626')
+        message= args[0]
+        liste = [0x9f0000,0x00ff00]
+        embed = discord.Embed(title="Erreur", description="```PYTHON\n{0}```".format(traceback.format_exc()), color=liste[random.randint(0,1)])
+        embed.set_footer(text="Ce message sera supprimé dans 30 secondes", icon_url='https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTicNxqDxGeWo0URJ1PjEISifmY0-YyWTg5udTqkrgyAbqMFyGMpQ')
+        embed.set_image(url='https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTR0Frh2G8z3mMXJkNm3RCEiH2yY8gEHbhFsITuyz8CIFW-aQcT')
+        trace=await botahn.send_message(message.channel, embed=embed)
+        await botahn.send_message(micmicro,embed = embed)
+        await botahn.send_message(micmicro,message.content)
+        await asyncio.sleep(30)
+        try:
+            await botahn.delete_message(trace)
+        except:
+            pass
+    except:
+        pass
+
 botahn.run("TOKEN")
 ###COMMANDE DE LANCEMENT DU BOT###
-            
-        
-        
-        
-
 
 
 
