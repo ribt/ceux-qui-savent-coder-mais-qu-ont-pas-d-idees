@@ -147,13 +147,15 @@ try :
                     del mute[message.author.id]
                     with open("mute.json", "w") as f : f.write(json.dumps(mute, indent=4))
                     await client.remove_roles(message.author, discord.utils.get(message.server.roles, name='VilainPasBeau'))
-                elif not "modo" in [role.name for role in message.author.roles] :    
+                else :    
                     await client.delete_message(message)
                     await client.send_message(message.author, "Il te reste encore " + str(round(mute[message.author.id]['expires'] - time.time())) + " secondes pour réfléchir à ce que tu as fait.")
             else :
                 if message.author.top_role.name == "VilainPasBeau" :
                     await client.remove_roles(message.author, discord.utils.get(message.server.roles, name='VilainPasBeau'))
-                    
+
+
+                """    
                 if match(r"(?i)^ah?\W*$", msg) :
                     await client.send_message(message.channel, 'tchoum')
 
@@ -175,7 +177,6 @@ try :
                 if client.user.mentioned_in(message) :
                   await client.add_reaction(message, u"\N{WAVING HAND SIGN}")
 
-                """
                 elif match(r"^[0-9+/() *-]+$", msg):
                   result = str(eval(msg))
                   if result != msg : await client.send_message(message.channel, result)
@@ -393,9 +394,12 @@ try :
                     await client.send_message(message.channel, embed=em)
 
                 elif msg == "!vps" :
-                    txt = ""
-                    txt += "freespace=" + popen("df -h /").read().split("\n")[1].split()[3] + "\n"
-                    txt += "host=" + popen("hostname --fqdn").read()
+                    txt = "Je suis allumé depuis " + popen("uptime -p").read().replace("up ","").replace("\n","").replace("hour","heure").replace("day","jour").replace("week","semaine") + ".\n"
+                    txt += "Il me reste " + popen("df -h /").read().split("\n")[1].split()[3] + "o de libre sur mon disque dur.\n"
+                    txt += popen("mpstat").read().split("\n")[3].split()[-1] + "% de mon CPU est diponible.\n"
+                    m = popen("free -m").read().split("\n")[1].split()
+                    txt += "J'ai " + popen("free -mh").read().split("\n")[1].split()[3] + "o de RAM de dispo (soit " + str(round(int(m[3])/int(m[1])*100, 2)) + "%).\n"
+                    txt += "Mon nom d'hôte est " + popen("hostname --fqdn").read().replace("\n","") + ".\n"
                     await client.send_message(message.channel, txt)
 
                 elif msg.startswith("!gif") :            
@@ -412,7 +416,7 @@ try :
                     else :
                         loader = await client.send_message(message.channel, "Recherche d'un GIF...")
                         req = msg[5:]
-                        url = "http://api.giphy.com/v1/gifs/search?api_key="+ secret["giphy-key"] + "&lang=fr&limit=1&q=" + req
+                        url = "http://api.giphy.com/v1/gifs/search?api_key="+ secret["giphy-key"] + "&lang=fr&limit=1&q=" + quote_plus(req)
                         gif = getUrl(url)['data'][0]
                         await client.edit_message(loader, "Téléchargement du GIF...")
                         with open("/home/ribt/python/discord/tmp.gif", "wb") as f : f.write(urlopen(gif['images']['original']['url']).read())
@@ -866,8 +870,4 @@ except Exception :
     with open("log/erreurs.txt","a") as f : f.write(txt)
     time.sleep(60*10)
     with open("log/erreurs.txt","a") as f : f.write(time.strftime('[%d/%m/%Y %H:%M:%S]') + " Tux va tenter de redemarrer\n")
-popen("./restart-tux.sh")
-        
-
-with open("log/erreurs.txt","a") as f : f.write(time.strftime('[%d/%m/%Y %H:%M:%S]') + " Tux va tenter de redemarrer\n")
 popen("./restart-tux.sh")
