@@ -5,63 +5,133 @@ from calendar import timegm
 from datetime import date
 import random
 from traceback import format_exc
-from re import match, search
-from urllib.request import urlopen
+import re
+from urllib.request import urlopen, Request
 from urllib.parse import quote_plus
+import urllib.error
+from html import unescape
 import json
 from os import popen
 from glob import glob
-from sys import exit
 import feedparser
 import codecs
 import speedtest
 import unicodedata
 from hashlib import sha256
+from base64 import *
 import qrcode
-from variables import fast, aide_fast, caracteres, feeds, pendu, ytCategories
+from unidecode import unidecode
+from math import ceil
+from PIL import Image
+from bs4 import BeautifulSoup
+from constantes import fast, aide_fast, caracteres, feeds, pendu, ytCategories
 from fonctions import joliStr, getUrl
 
-commandes = {"blague": "`!blague` pour avoir une blague au hasard parmis celles que je connais et `!blague add <Votre blague.>` pour m'en apprendre une nouvelle (mettre un `|` pour que je fasse une pause au moment de raconter votre blague)",
-             "citation": "`!citation` pour avoir une citation au hasard parmis celles que je connais et `!citation add <Votre citation.>` pour m'en apprendre une nouvelle",
-             "chr": "`!chr <c>` où `<c>` est n'importe quel caractère pour avoir le nom et le code Unicode de ce caractère",
-             "crypto": "`!crypto <nom>` pour avoir des infos sur l'état actuel de la crypto monnaie",
-             "date": "la date d'aujourd'hui, tout simplement ^^",
-             "defis": "cette commande va de paire avec https://ribt.fr/defis/ \n`!defis` pour avoir le leaderboard et `!defis @quelqu'un` pour avoir le détail pour une personne.",
-             "devine": "un super jeu ! (je choisis un nombre entre 0 et 100 et tu dois le deviner)",
-             "fast": aide_fast,
-             "gif": "`!gif <recherche>` pour chercher un GIF (une recherche vide donne un GIF aléatoire)",
-             "gps": "`!gps <latitude,longitude>` pour avoir les trois mots what3words et l'adresse correspondant aux coordonnées. Exemple : `!gps 49.192149,-0.306415`.",
-             "help": "la liste des commandes (`!help <comande>` pour avoir toutes les infos sur une commande)",
-             "heure": "l'heure, tout simplement ^^",
-             "lmgtfy": "Let Me Google That For You, je fais une recherche sur Internet pour toi",
-             "loc": "Lines Of Code : je te dis combien de lignes comporte actuellement mon programme Python",
-             "mute": "**uniquement pour les modérateurs**\n`!mute <@utilisateur> <temps><s|m|h|j> <motif>` pour mute temporairement quelqu'un",
-             "ping": "tester la vitesse connection avec le bot",
-             "proverbe": "`!proverbe` pour avoir un proverbe au hasard parmis ceux que je connais et `!proverbe add <Votre proverbe.>` pour m'en apprendre un nouveau",
-             "qr": "`!qr <du blabla>` pour faire un QR code avec les données",
-             "r2d": "`!r2d <nombre en chiffres romains>` pour convertir un nombre en chiffres romains en un nombre en chiffres décimaux",
-             "role": "`!role <list|add|remove> [rôle1] [rôle2] [rôle3] ...` pour vous ajouter, supprimer ou lister tous les rôles disponibles",
-             "roll": "un nombre (pseudo-)aléatoire entre 0 et 100",
-             "rot13": "`!rot13 <texte>` pour chiffrer/déchiffrer un message en rot13",
-             "speedtest": "je me la pète un peu avec ma conexion de taré ^^",
-             "vps": "quelques infos sur le VPS qui m'héberge",
-             "rug": "Random User Generator, une identité aléatoire",
-             "table": "`!table <un chiffre>` pour avoir la table de multiplication du chiffre",
-             "ud": "`!ud <mot>` pour chercher la définition d'un mot sur Urban Dictionnary (en anglais)",
-             "unicode": "`!unicode <code>` je renvois le caractère correspondant au code Unicode donné (au format décimal)",
-             "user": "`!user @mention` quelques infos sur la personne",
-             "w3w": "`!w3w <mot1.mot2.mot3> [langue]` pour avoir les coordonnées GPS et l'adresse d'un lieu à partir des ses trois mots what3words. La langue est le code ISO 639-1 de deux lettres coorespondant. Ce paramètre est facultatif si les mots sont français. Plus d'infos sur https://what3words.com/fr/a-propos/",
-             "weather": "`!weather <ville> <jours>` pour avoir les prévisions météo de la ville pendant un certain nombre de jour (un nombre entre 1 et 7)",
-             "whois": "`!whois <nom de domaine>` pour avoir queqlues infos sur un nom de domaine",
-             "wiki": "`!wiki <recherche>` pour effectuer une recherche sur Wikipédia et avoir la première phrase de l'article",
-             "youtube": "`!youtube <nom de la vidéo ou de la chaîne à chercher>` pour avoir plein d'infos sur cette vidéo/chaîne."}
+commandes = {"ascii":      ["<texte>",                                       "Je te convertis ton texte (ASCII) en d'autres bases."],
+             "avatar":     ["[@quelqu'un]",                                  "Je t'envois ta photo de profil (ou celle de l'utilisateur mentionné) convertie en PNG spécialemnt pour toi !"],
+             "base32":     ["<base32>",                                      "Je te convertis ton texte (base32) en d'autres bases."],
+             "base64":     ["<base64>",                                      "Je te convertis ton texte (base64) en d'autres bases."],
+             "base85":     ["<base85>",                                      "Je te convertis ton texte (base85) en d'autres bases."],
+             "bin":        ["<binaire>",                                     "Je te convertis ton nombre (binaire) en d'autres bases."],
+             "blague":     ["[add <Votre blague.>]",                         "Je te raconte une blague au hasard parmis celles que je connais ou alors tu m'en apprends une nouvelle (mettre un `|` pour que je fasse une pause au moment de raconter votre blague)."],
+             "chr":        ["<c>",                                           "Je te donne le nom et le code Unicode de ce caractère."],
+             "citation":   ['[add <"Votre citation.", auteur>]',             "Je te raconte une citation au hasard parmis celles que je connais ou alors tu m'en apprends une nouvelle."],
+             "clear":      ["<nombre>",                                      "**uniquement pour les modérateurs**\nJe supprime les <nombre> derniers messages dans le salon où la commande a été effectuée."],
+             "crypto":     ["<nom>",                                         "Je te donne des infos sur l'état actuel de la crypto monnaie."],
+             "date":       ["",                                              "la date d'aujourd'hui, tout simplement ^^"],
+             "dec":        ["<bombre décimal>",                              "Je te convertis ton nombre (décimal) en d'autres bases."],
+             "defis":      ["[@quelqu'un]",                                  "Cette commande va de paire avec https://ribt.fr/defis/\nJe te donne le leaderboard ou le détail pour la personne mentionnée."],
+             "devine":     ["",                                              "Un super jeu ! (Je choisis un nombre entre 0 et 100 et tu dois le deviner)."],
+             "dis":        ["<du blabla>",                                   "Je te lis le texte en vocal."],
+             "emoticon":   ["",                                              "Je t'envoies un des 4404 jolis emoticons que je connais."],
+             "ext":        ["<extension>",                                   "Je t'envois plein d'infos croustillantes sur une extension de nom de domaine (`.fr`, `.com`...) totalement pompées sur https://www.gandi.net/."],
+             "fast":       ["<niveau>",                                      aide_fast],
+             "gif":        ["[<termes à rechercher>]",                       "Je vais te chercher un GIF sur https://giphy.com/ (une recherche vide donne un GIF aléatoire)."],
+             "gps":        ["<latitude,longitude>",                          "Je te donne les trois mots what3words et l'adresse postale correspondants aux coordonnées GPS."],
+             "haddock":    ["",                                              "Un des nombreux jurons du capitaine Haddock"],
+             "help":       ["[<commande>]",                                  "Je te donne la liste des commandes disponibles ou toutes les infos sur une commande."],
+             "heure":      ["",                                              "l'heure qu'il est, tout simplement ^^"],
+             "hex":        ["<hexadécimal>",                                 "Je te convertis ton nombre (en hexadécimal) en d'autres bases."],
+             "lmgtfy":     ["<termes à rechercher>",                         "Let Me Google That For You, je fais une recherche sur Internet pour toi (avec Qwant bien entendu)."],
+             "loc":        ["",                                              "Lines Of Code, je te dis combien de lignes comporte actuellement mon programme Python."],
+             "mute":       ["<@utilisateur> <temps><s|m|h|j> <motif>",       "**uniquement pour les modérateurs**\nPour mute temporairement quelqu'un."],
+             "ping":       ["",                                              "Je te donne le temps qui s'écoule entre le moment où tu postes ton message et celui où je le reçois."],
+             "proverbe":   ["[add <Votre proverbe.>]",                       "Je te donne un proverbe au hasard parmis ceux que je connais ou alors tu m'en apprends un nouveau."],
+             "qr":         ["<du blabla>",                                   "Je te fabrique un joli QR code avec ton texte de stocké dessus."],
+             "r2d":        ["<nombre en chiffres romains>",                  "Je te convertis gratuitement un nombre en chiffres romains en un nombre en chiffres décimaux."],
+             "role":       ["<list|add|remove> [rôle1] [rôle2] [rôle3] ...", "Je liste tous les rôles disponibles ou je t'ajoute/enlève celui/ceux que tu me demandes."],
+             "roll":       ["",                                              "Je te fournis un nombre (pseudo-)aléatoire entre 0 et 100."],
+             "rot13":      ["<texte>",                                       "Je te chiffre/déchiffre ton message en ROT13."],
+             "savoir":     ["",                                              "Je te raconte une petite anecdote piochée sur https://www.savoir-inutile.com/"],
+             "speedtest":  ["",                                              "Je me la pète un peu avec ma conexion de taré \N{FACE WITH STUCK-OUT TONGUE AND WINKING EYE}"],
+             "vps":        ["",                                              "Je te donne quelques infos essentielles sur le VPS qui m'héberge."],
+             "rug":        ["",                                              "Random User Generator, Je te fournis une identité aléatoire un peu crédible si tu veux te faire des faux papiers."],
+             "table":      ["<un chiffre>",                                  "Je te montre la table de multiplication de ce chiffre."],
+             "tts":        ["<du blabla>",                                   "Je t'envois un petit fichier MP3 où je lis ton blabla."],
+             "unmute":     ["<@quelqu'un>",                                  "**uniquement pour les modérateurs**\nPour unmute dès maintenant quelqu'un qui est toujours mute."],
+             "urban":      ["<an English word>",                             "Je te donne la définition du mot sur Urban Dictionnary (en anglais)."],
+             "unicode":    ["<code décimal>",                                "Je renvois le caractère correspondant au code Unicode donné."],
+             "user":       ["@mention",                                      "Je te donne quelques infos sur la personne emntionnée."],
+             "w3w":        ["<mot1.mot2.mot3> [langue]",                     "Je te donne les coordonnées GPS et l'adresse postale du lieu à partir des ses trois mots what3words. La langue est le code ISO 639-1 de deux lettres coorespondant. Ce paramètre est facultatif si les mots sont français. Plus d'infos sur https://what3words.com/fr/a-propos/"],
+             "weather":    ["<ville> <jours>",                               "Je te prédis la météo de la ville pendant un certain nombre de jours (pas plus de 7 non plus, faut pas déconner non plus)."],
+             "whois":      ["<nom de domaine>",                              "Je te donne queqlues infos sur le nom de domaine"],
+             "wiki":       ["<termes à rechercher>",                         "Je fais la recherche sur Wikipédia à ta place."],
+             "youtube":    ["<nom de la vidéo/chaîne>",                      "Je te montre plein d'infos sur cette vidéo/chaîne."]
+             }
+
+alias = {"devine":  ["+ou-"],
+         "dis":     ["parle"],
+         "help":    ["aide"],
+         "lmgtfy":  ["lmqtfy", "qwant"],
+         "urban":   ["ud"],
+         "user":    ["profile"],
+         "weather": ["meteo"],
+         "youtube": ["ytb", "yt"]
+         }
+
+configInfos = {"prefix":             ["int", "Le préfixe pour utiliser une des mes commandes."],
+               "welcomeMP":          ["text", "Le message que j'envois aux nouveaux quand ils rejoignent le serv."],
+               "modoRole":           ["role", "Le rôle que doivent avoir ceux qui peuvent utiliser mes commandes de modération."],
+               "TuxAdminRole":       ["role", "Le rôle que l'on doit avoir pour utiliser la sacro-sainte commande `config`."],
+               "muteRole":           ["role", "Le rôle que je peux mettre aux gens qui sont mute pour les humilier publiquement."],
+               "humorPercent":       ["percent", "Mon pourcentage d'humour."],
+               "spamChannel":        ["channel", "Le seul salon où sont autorisées les commandes qui risquent de pas mal flood (comme les jeux)."],
+               "managedRolesColor":  ["color", "Si configuré, ce paramètre permet à tous les membres d'utiliser la commande `role` pour s'ajouter eux-même les rôles ayant cette couleur."],
+               "suggestionsChannel": ["channel", "Le salon où les membres peuvent proposer des améliorations pour le serveur."],
+               "welcomeChannel":     ["channel", "Si configuré, je poste un message de bienvenue dans le salon correspondant à chaque nouvel arrivant."],
+               "goodbyeChannel":     ["channel", "Si configuré, je poste un message de au revoir dans le salon correspondant à chaque membre qui nous quitte."]
+               }
+
+defaultConfig = {"prefix": "!",
+                 "welcomeMP": None,
+                 "modoRole": None,
+                 "TuxAdminRole": None,
+                 "muteRole": None,
+                 "humorPercent": 10,
+                 "spamChannel": None,
+                 "managedRolesColor": None,
+                 "suggestionsChannel": None,
+                 "welcomeChannel": None,
+                 "goodbyeChannel": None
+                 }
+
+def usage(p, commande, mini=False):
+    commandeAff = commande
+    if not commande in commandes :
+        for test in alias :
+            if commande in alias[test]:
+                commande = test
+    txt = ""
+    if not mini : txt = "Usage : "
+    txt += "`" + p + commandeAff + " " + commandes[commande][0] + "`"
+    if not mini : txt += " (`" + p + "help " + commandeAff + "` pour plus de détails)."
+    return txt
 
 with open("wordlist/courants.txt", "r") as f : mots = f.read().split("\n")
 with open("secret.json", "r") as f : secret = json.loads(f.read())
 with open("pokemons-trad.json", "r") as f : pokeTrad = json.loads(f.read())
 
-chaine, nbr, coups, ancienmsg, PartieP, mot, aff, vies = {},{},{},{},{},{},{},{}
-tmp = log = None 
+tmp = logFilename = None 
 
 try :    
     client = discord.Client()
@@ -69,26 +139,40 @@ try :
     @client.event
     async def on_ready():
         try :
-            global log, ribt
-            log = time.strftime("log/%Y%m%d", time.localtime())
-            with open(log,"a") as f : f.write(time.strftime('\n\n***[%H:%M:%S]', time.localtime()) + ' Connecté en tant que ' + client.user.name + ' (id : ' + client.user.id + ')\n')
+            global logFilename, ribt
+            logFilename = time.strftime("log/%Y%m%d", time.localtime())
+            with open(logFilename,"a") as f : f.write(time.strftime('\n\n***[%H:%M:%S]', time.localtime()) + ' Connecté en tant que ' + client.user.name + ' (id : ' + client.user.id + ')\n')
             await client.change_presence(game=discord.Game(name='jouer avec vous'))
             ribt = await client.get_user_info("321675705010225162")
-            await client.start_private_message(ribt)
-            await client.send_message(ribt, 'OK')
+            with open("config.json", "r") as f : config = json.loads(f.read())
+            for server in client.servers :
+                if server.id in config :
+                    for param in defaultConfig :
+                        if not param in config[server.id] : config[server.id][param] = defaultConfig[param]
+                    oldConfig = config[server.id].copy()
+                    for param in oldConfig:
+                        if not param in defaultConfig : del config[server.id][param]
+                else :
+                    config[server.id] = defaultConfig
+            with open("config.json", "w") as f : f.write(json.dumps(config, indent=4))
+            await client.send_message(ribt, 'OK v2.0')
         except:
             txt = time.strftime('[%d/%m/%Y %H:%M:%S]\n', time.localtime()) + format_exc() + "\n\n"
             with open("log/erreurs.txt","a") as f : f.write(txt)
 
     @client.event
     async def on_member_join(member):
-      with open("config.json", "r") as f : config = json.loads(f.read())
-      if member.server.id in config and "mp_accueil" in config[member.server.id] :
-         await client.send_message(member, config[member.server.id]["mp_accueil"])
+        with open("config.json", "r") as f : config = json.loads(f.read())[member.server.id]
+        if config["welcomeMP"] :
+            await client.send_message(member, config["welcomeMP"])
+        channel = discord.utils.get(message.server.channels, id=config["welcomeChannel"])
+        if channel : await client.send_message(channel, "Bienvenue à toi " + member.mention + " \N{WAVING HAND SIGN}")
 
     @client.event
     async def on_member_remove(member):
-      await client.send_message(discord.utils.get(member.server.channels, name='accueil'), "Au revoir **" + member.name + "** \N{WAVING HAND SIGN}")
+        with open("config.json", "r") as f : config = json.loads(f.read())[member.server.id]
+        channel = discord.utils.get(message.server.channels, id=config["goodbyeChannel"])
+        if channel : await client.send_message(channel, "Au revoir **" + member.name + "** \N{WAVING HAND SIGN}")
 
     @client.event
     async def on_message(message):
@@ -96,11 +180,11 @@ try :
             if message.author == client.user : return
 
             if message.content == "!reboot" and message.author == ribt :
-                  with open("log/erreurs.txt","a") as f : f.write(time.strftime('[%d/%m/%Y %H:%M:%S]') + "Tux va tenter de redemarrer sur demande de ribt\n")
-                  cmd = popen("./restart-tux.sh")
-                  exit()
+                    with open("log/erreurs.txt","a") as f : f.write(time.strftime('[%d/%m/%Y %H:%M:%S]') + "Tux va tenter de redemarrer sur demande de ribt\n")
+                    cmd = popen("./restart-tux.sh")
+                    exit()
             
-            if message.server == None :
+            if message.server == None : # MP
                 if message.content.startswith("!flag") :
                     args = message.content.split(" ")
                     if len(args) != 2: await client.send_message(message.channel, "Usage : `!flag <le_flag_d-un_defi>`.")
@@ -108,609 +192,695 @@ try :
                         hashed = sha256(bytes(args[1], "utf-8")).hexdigest()
                         with open("flags.json", "r") as f : flags = json.loads(f.read())
                         if hashed in flags :
-                          n = flags[hashed]["defi"]
-                          pts = flags[hashed]["points"]
-                          userId = message.author.id
-                          with open("score.json", "r") as f : score = json.loads(f.read())
-                          if not userId in score : score[userId] = {"points": 0, "reussis": []}
-                          if n in score[userId]["reussis"] : await client.send_message(message.author, "Tu as déjà réussi ce défi !")
-                          else :
-                            score[userId]["points"] += pts
-                            score[userId]["reussis"].append(n)
-                            with open("score.json", "w") as f : f.write(json.dumps(score, indent=4))
-                            
-                            serv = discord.utils.get(client.servers, id="401667451189985280")
-                            role = discord.utils.get(serv.roles, name="défi-"+str(n))
-                            member = discord.utils.find(lambda m: m.name == message.author.name, serv.members)
-                            await client.add_roles(member, role)
+                            n = flags[hashed]["defi"]
+                            pts = flags[hashed]["points"]
+                            userId = message.author.id
+                            with open("score.json", "r") as f : score = json.loads(f.read())
+                            if not userId in score : score[userId] = {"points": 0, "reussis": []}
+                            if n in score[userId]["reussis"] : await client.send_message(message.author, "Tu as déjà réussi ce défi !")
+                            else :
+                                score[userId]["points"] += pts
+                                score[userId]["reussis"].append(n)
+                                with open("score.json", "w") as f : f.write(json.dumps(score, indent=4))
+                                
+                                serv = discord.utils.get(client.servers, id="401667451189985280")
+                                role = discord.utils.get(serv.roles, name="défi-"+str(n))
+                                member = discord.utils.find(lambda m: m.name == message.author.name, serv.members)
+                                await client.add_roles(member, role)
 
-                            await client.send_message(message.author, 'Ceci est bien le flag du défi n°' + str(n) + ", tu gagnes " + str(pts) + " points ! Tu peux désormais accéder au channel solutions pour regarder comment les autres ont fait et pour poster ta solution.")
-                            await client.send_message(client.get_channel("451818508389580801"), "**" + message.author.name + "** a réussi le défi n°" + str(n) + " (il gagne " + str(pts) + " points).")
-
+                                await client.send_message(message.author, 'Ceci est bien le flag du défi n°' + str(n) + ", tu gagnes " + str(pts) + " points ! Tu peux désormais accéder au channel solutions pour regarder comment les autres ont fait et pour poster ta solution.")
+                                await client.send_message(client.get_channel("451818508389580801"), "**" + message.author.name + "** a réussi le défi n°" + str(n) + " (il gagne " + str(pts) + " points).")
+  
                         else : await client.send_message(message.author, 'Mauvais flag, essaie encore \N{WINKING FACE}')
                 else : await client.send_message(message.author, 'Je ne répond pas au MP désolé \N{HEAVY BLACK HEART}')
                 return
 
-            global log, tmp, ancienmsg, loader, chaine, nbr, coups, vies, mot, aff
-            #print (message.content)
+            if message.content == "" : return # nouvel arrivant on envoi de fichier sans commentaire
+
+            global logFilename
             t = timegm(message.timestamp.timetuple())
             msg = message.content
-            args = msg.split(" ")
             serv = message.server.id
-            txt = time.strftime('\n[%H:%M:%S] #', time.localtime(t)) + str(message.channel) + ' ' + str(message.author) + ' : ' + msg
-            if log != time.strftime("log/%Y%m%d", time.localtime()): log = time.strftime("log/%Y%m%d", time.localtime())
-            with open(log,"a") as f : f.write(txt)
+            logTxt = time.strftime('\n[%H:%M:%S] #', time.localtime(t)) + str(message.channel) + ' ' + str(message.author) + ' : ' + msg
+            if logFilename != time.strftime("log/%Y%m%d", time.localtime()): logFilename = time.strftime("log/%Y%m%d", time.localtime())
+            with open(logFilename, "a") as f : f.write(logTxt)
+        
+            with open("config.json", "r") as f : config = json.loads(f.read())[message.server.id]
+            p = config["prefix"]
+            muteRole = discord.utils.get(message.server.roles, id=config["muteRole"])
+            modo = discord.utils.get(message.server.roles, id=config["modoRole"])
+            admin = discord.utils.get(message.server.roles, id=config["TuxAdminRole"])
+            spamBot = discord.utils.get(message.server.channels, id=config["spamChannel"])
+            suggestion = discord.utils.get(message.server.channels, id=config["suggestionsChannel"])
+            humour = config["humorPercent"]
+
             with open("mute.json", "r") as f : mute = json.loads(f.read())
+            if serv in mute :
+                if message.author.id in mute[serv] :
+                    if mute[serv][message.author.id]['expires'] < time.time() :
+                        del mute[serv][message.author.id]
+                        with open("mute.json", "w") as f : f.write(json.dumps(mute, indent=4))
+                        if muteRole in message.author.roles :
+                            try : await client.remove_roles(message.author, muteRole)
+                            except discord.errors.Forbidden : await client.send_message(message.channel, "Je n'ai pas le droit de t'enlever le rôle "+muteRole.mention+" \N{SMILING FACE WITH OPEN MOUTH AND COLD SWEAT}")
+                    else :    
+                        try : await client.delete_message(message)
+                        except discord.errors.Forbidden : await client.send_message(message.channel, "Si je n'ai pas le droit de supprimer les messages des gens mute ça peut vite devenir chiant \N{SMILING FACE WITH OPEN MOUTH AND COLD SWEAT}")
+                        try : await client.send_message(message.author, "Il te reste encore " + str(round(mute[serv][message.author.id]['expires'] - time.time())) + " secondes pour réfléchir à ce que tu as fait.")
+                        except discord.errors.Forbidden : pass
+                        return
+            if muteRole in message.author.roles :
+                try : await client.remove_roles(message.author, muteRole)
+                except discord.errors.Forbidden : await client.send_message(message.channel, "Je n'ai pas le droit de t'enlever le rôle "+muteRole.mention+" \N{SMILING FACE WITH OPEN MOUTH AND COLD SWEAT}")
 
-            if message.author.id in mute :
-                if mute[message.author.id]['expires'] < time.time() :
-                    del mute[message.author.id]
-                    with open("mute.json", "w") as f : f.write(json.dumps(mute, indent=4))
-                    await client.remove_roles(message.author, discord.utils.get(message.server.roles, name='VilainPasBeau'))
-                else :    
-                    await client.delete_message(message)
-                    await client.send_message(message.author, "Il te reste encore " + str(round(mute[message.author.id]['expires'] - time.time())) + " secondes pour réfléchir à ce que tu as fait.")
-            else :
-                if message.author.top_role.name == "VilainPasBeau" :
-                    await client.remove_roles(message.author, discord.utils.get(message.server.roles, name='VilainPasBeau'))
+            if random.randint(0, 99) < humour :
+                if re.match(r"(?i)^ah?\W*$", msg) : await client.send_message(message.channel, 'tchoum')
+                if re.match(r"(?i)^[kq]u?oi?\W*$", msg) : await client.send_message(message.channel, 'ffeur')
+                if re.match(r"(?i)^lol\W*$", msg) : await client.send_message(message.channel, 'ita')
+                if re.match(r"(?i)^hein\W*$", msg) : await client.send_message(message.channel, 'deux')
+                if re.match(r"(?i)^trois\W*$", msg) : await client.send_message(message.channel, 'soleil')
+                if re.match(r"(?i)^oui\W*$", msg) : await client.send_message(message.channel, 'stiti')
+                if client.user.mentioned_in(message) : await client.add_reaction(message, u"\N{WAVING HAND SIGN}")
 
+            """
+            elif re.match(r"^[0-9+/() *-]+$", msg):
+              result = str(eval(msg))
+              if result != msg : await client.send_message(message.channel, result)
+            """
 
-                """    
-                if match(r"(?i)^ah?\W*$", msg) :
-                    await client.send_message(message.channel, 'tchoum')
+            if not msg.startswith(p) : return 
 
-                if match(r"(?i)^[kq]u?oi?\W*$", msg) :
-                    await client.send_message(message.channel, 'ffeur')
+            args = msg.split(" ")
+            cmd = args[0][len(p):]
+            cmd = unidecode(cmd).lower() # on vire les accents et on met en minuscules
+            del args[0]
+            arg = " ".join(args)
 
-                if match(r"(?i)^lol\W*$", msg) :
-                    await client.send_message(message.channel, 'ita')
+            if cmd == "flag" :
+                await client.delete_message(message)
+                await client.send_message(message.author, "Envoie-moi le flag **PAR MP** (avec le préfixe `!`) sinon tout le monde reçoit une notif avec la réponse \N{TIRED FACE}")
 
-                if match(r"(?i)^hein\W*$", msg):
-                  await client.send_message(message.channel, 'deux')
+            elif cmd == "ping" :
+                embed = discord.Embed(title="\N{TABLE TENNIS PADDLE AND BALL} Pong !", color=0x00ff00)
+                embed.add_field(name=message.author.name+" -> "+client.user.name+" :", value=str(round(time.time() * 1000 - t * 1000 , 1))+" ms", inline=True)
+                debut = time.time()
+                reponse = await client.send_message(message.channel, embed=embed)
+                embed.add_field(name=message.author.name+" <- "+client.user.name+" :", value=str(round(time.time() * 1000 - debut * 1000 , 1))+" ms", inline=True)
+                await client.edit_message(reponse, embed=embed)
 
-                if match(r"(?i)^trois\W*$", msg):
-                  await client.send_message(message.channel, 'soleil')
+            elif cmd == "help" or cmd in alias["help"]:
+                if len(args) == 0 :
+                    page = -1
+                    liste = sorted(commandes.keys())
+                    pageMax = ceil(len(liste)/5)
+                    boucle = True
+                    embed = discord.Embed(color=0x00ff00)
+                    embed.add_field(name="Bienvenue dans ce superbe menu help ^^", value="** **")
+                    embed.add_field(name="Vous pouvez naviguez de page en page avec les réactions ci-dessous.", value="** **")
+                    embed.add_field(name="Si vous voulez ENCORE PLUS de détails sur une commande, vous pouvez faire `"+p+"help <commande>`.", value="** **")
+                    interface = await client.send_message(message.channel, embed=embed)
+                    await client.add_reaction(interface, "\N{BLACK RIGHT-POINTING TRIANGLE}")
+                    res = await client.wait_for_reaction(["\N{BLACK RIGHT-POINTING TRIANGLE}"], user=message.author, timeout=120, message=interface)
+                    while boucle:
+                        if res == None :
+                            boucle = False
+                            await client.delete_message(interface)
+                            break
+                        try : await client.clear_reactions(interface)
+                        except discord.errors.Forbidden : await client.send_message(message.channel, "Je n'ai pas le droit de supprimer les réactions sous me propres messages il va donc falloir que tu enlèves et remettes ta réaction pour continuer et que tu engeules les gestionnaires de ce serveur.")
+                        emo = str(res.reaction.emoji)
+                        if emo == "\N{BLACK LEFT-POINTING TRIANGLE}" : page -= 1
+                        elif emo == "\N{BLACK RIGHT-POINTING TRIANGLE}" : page += 1
+                        if page == pageMax :
+                            embed = discord.Embed(color=0x00ff00)
+                            embed.add_field(name="Et voilà c'est fini ^^", value="** **")
+                            embed.add_field(name="C'était cool, hein ?", value="** **")
+                        elif page < 0:
+                            embed = discord.Embed(title="Super menu help", description="Bienvenue dans ce superbe menu help ^^\nVous pouvez naviguez de page en page avec les réactions ci-dessous. Si vous voulez **ENCORE PLUS** de détails sur une commande, vous pouvez faire `"+p+"help <commande>`.", color=0x00ff00)
+                        else :
+                            embed = discord.Embed(title="Super menu help", color=0x00ff00)
+                            embed.clear_fields()
+                            for commande in liste[page*5:page*5+5]:
+                                embed.add_field(name=p+commande+" "+commandes[commande][0]+" :", value=commandes[commande][1], inline=True)
+                        embed.set_footer(text="\N{BOOKMARK TABS} page "+str(page+1)+"/"+str(pageMax+1))
+                        interface = await client.edit_message(interface, embed=embed)
+                        if page > -1 : await client.add_reaction(interface, "\N{BLACK LEFT-POINTING TRIANGLE}")
+                        if page < pageMax : await client.add_reaction(interface, "\N{BLACK RIGHT-POINTING TRIANGLE}")
+                        res = await client.wait_for_reaction(["\N{BLACK LEFT-POINTING TRIANGLE}","\N{BLACK RIGHT-POINTING TRIANGLE}"], user=message.author, timeout=120, message=interface)
+                        if res == None :
+                            boucle = False
+                            await client.delete_message(interface)                        
 
-                if match(r"(?i)^oui\W*$", msg):
-                  await client.send_message(message.channel, 'stiti')
-
-                if client.user.mentioned_in(message) :
-                  await client.add_reaction(message, u"\N{WAVING HAND SIGN}")
-
-                elif match(r"^[0-9+/() *-]+$", msg):
-                  result = str(eval(msg))
-                  if result != msg : await client.send_message(message.channel, result)
-                """
-
-                
-                if msg == "" : pass
-
-                elif msg.startswith('!flag'):
-                  await client.delete_message(message)
-                  await client.send_message(message.author, "Envoie-moi le flag **PAR MP** sinon tout le monde reçoit une notif avec la réponse \N{TIRED FACE}")
-
-                elif msg == '!ping':
-                    tmp = time.time() * 1000 - t * 1000
-                    await client.send_message(message.channel, 'Pong ! ('+str(round(tmp,1))+' ms)')
-
-                elif msg == '!help':
-                    txt = "__Liste des commandes disponibles :__\n\n(faire `!help <commande>` pour avoir toutes les infos sur une comande)\n\n"
-                    for commande in sorted(commandes.keys()) : txt += "- `" + commande + "`\n"
-                    txt += "\n**Cette liste est en constante évolution : n'hésitez pas à revenir la consulter régulièrement !**"
-                    if message.channel.name == "spam-bot" : await client.send_message(message.channel, txt)
-                    else :
-                        await client.send_message(message.author, txt)
-                        await client.send_message(message.channel, "Check tes MP " + "<@" + message.author.id + "> \N{WINKING FACE}")
-
-                elif msg.startswith("!help ") :
-                    commande = msg[6:]
+                elif len(args) == 1 :
+                    commande = unidecode(args[0]).lower()
+                    if not commande in commandes :
+                        for test in alias :
+                            if commande in alias[test]:
+                                commande = test
                     if commande in commandes :
-                        embed = discord.Embed(title="Description de la commande !" + commande + " :", description=commandes[commande], color=0x00ff00)
+                        embed = discord.Embed(title=p+commande, color=0x00ff00)
+                        embed.add_field(name="Usage :", value=usage(p, commande, mini=True), inline=True)
+                        embed.add_field(name="Description :", value=commandes[commande][1], inline=True)
+                        if commande in alias : embed.add_field(name="Alias :", value=", ".join(alias[commande]), inline=True)
                         await client.send_message(message.channel, embed=embed)
                     else :
-                        await client.send_message(message.channel, "Pas de description pour cette commande...")
+                        await client.send_message(message.channel, "Pas d'infos pour cette commande...")
+                else : await client.send_message(message.channel, usage(p, cmd))
 
-                elif msg == '!roll' :
-                    await client.send_message(message.channel, str(random.randint(0, 100)))
+            elif cmd == 'roll' :
+                await client.send_message(message.channel, str(random.randint(0, 100)))
 
-                elif msg == '!heure' :
-                    await client.send_message(message.channel, time.strftime('Il est %H:%M passé de %S secondes.', time.localtime()))
+            elif cmd == 'heure' :
+                await client.send_message(message.channel, time.strftime('Il est %H:%M passé de %S secondes.', time.localtime()))
 
-                elif msg == '!date':
-                    await client.send_message(message.channel, time.strftime('Nous sommes le %d/%m/%Y.', time.localtime()))
 
-                elif msg == '!blague':
-                    f = open("blagues.txt", "r")
-                    c = f.read().split('\n')
-                    f.close()
+            elif cmd == 'date':
+                await client.send_message(message.channel, time.strftime('Nous sommes le %d/%m/%Y.', time.localtime()))
+
+            elif cmd == 'blague':
+                with open("blagues.txt", "r") as f : c = f.read().split('\n')
+                if len(args) == 0 :
                     blague = random.choice(c).split('|')
-                    while blague == [""] or blague == tmp : blague = random.choice(c).split('|')
-                    tmp = blague
+                    while blague == [""] : blague = random.choice(c).split('|')
                     for txt in blague :
                         await client.send_message(message.channel, txt)
                         time.sleep(2)               
 
-                elif msg.startswith('!blague add '):
-                    blague = msg.replace('!blague add ', '')
-                    f = open("blagues.txt", "r")
-                    c = f.read().split('\n')
-                    f.close()
-                    if blague in c : await client.send_message(message.channel, message.author.mention + ' Je connais déjà cette blague.')
+                elif args[0] == "add" :
+                    blague = " ".join(args[1:]).replace("\n", "|")
+                    if blague in c : await client.send_message(message.channel, message.author.mention + 'Je connais déjà cette blague.')
                     else :
-                        f = open("blagues.txt", "a")
-                        f.write('\n' + blague)
-                        f.close()
+                        with open("blagues.txt", "a") as f : f.write('\n' + blague)
                         await client.add_reaction(message, u"\N{WHITE HEAVY CHECK MARK}")
+                else : await client.send_message(message.channel, usage(p, cmd))
 
-                elif msg == '!proverbe':
-                    f = open("proverbes.txt", "r")
-                    c = f.read().split('\n')
-                    f.close()
+            elif cmd == 'proverbe':
+                with open("proverbes.txt", "r") as f : c = f.read().split('\n')
+                if len(args) == 0 :
                     proverbe = random.choice(c)
-                    while proverbe == "" or proverbe == tmp : proverbe = random.choice(c)
-                    tmp = proverbe
+                    while proverbe == "" : proverbe = random.choice(c)
                     await client.send_message(message.channel, proverbe)
 
-                elif msg.startswith('!proverbe add '):
-                    proverbe = msg.replace('!proverbe add ', '')
-                    f = open("proverbes.txt", "r")
-                    c = f.read().split('\n')
-                    f.close()
-                    if proverbe in c : await client.send_message(message.channel, message.author.mention + ' Je connais déjà ce proverbe.')
+                elif args[0] == "add" :
+                    proverbe = " ".join(args[1:])
+                    if proverbe in c : await client.send_message(message.channel, message.author.mention + 'Je connais déjà ce proverbe.')
                     else :
-                        f = open("proverbes.txt", "a")
-                        f.write('\n' + proverbe)
-                        f.close()
+                        with open("proverbes.txt", "a") as f : f.write('\n' + proverbe)
                         await client.add_reaction(message, u"\N{WHITE HEAVY CHECK MARK}")
+                else : await client.send_message(message.channel, usage(p, cmd))
 
-                elif msg == '!citation':
-                    f = open("citations.txt", "r")
-                    c = f.read().split('\n')
-                    f.close()
+            elif cmd == 'citation':
+                with open("citations.txt", "r") as f : c = f.read().split('\n')
+                if len(args) == 0 :
                     citation = random.choice(c)
-                    while citation == "" or citation == tmp : citation = random.choice(c)
-                    tmp = citation
+                    while citation == "" : citation = random.choice(c)
                     await client.send_message(message.channel, citation)
 
-                elif msg.startswith('!citation add '):
-                    citation = msg.replace('!citation add ', '')
-                    f = open("citations.txt", "r")
-                    c = f.read().split('\n')
-                    f.close()
+                elif args[0] == "add" :
+                    citation = " ".join(args[1:])
                     if citation in c : await client.send_message(message.channel, message.author.mention + ' Je connais déjà cette citation.')
                     else :
-                        f = open("citations.txt", "a")
-                        f.write('\n' + citation)
-                        f.close()
+                        with open("citations.txt", "a") as f : f.write('\n' + citation)
                         await client.add_reaction(message, u"\N{WHITE HEAVY CHECK MARK}")
+                else : await client.send_message(message.channel, usage(p, cmd))
 
-                elif  msg.startswith('!wiki'):
-                    if len(args) < 2 : await client.send_message(message.channel, "Usage : `!wiki <recherche>`.")
-                    else :
-                        req = quote_plus(" ".join(args[1:]))
-                        resultat = getUrl("https://fr.wikipedia.org/w/api.php?format=json&action=query&prop=extracts&exsentences=2&explaintext&exintro&redirects=true&titles=" + req)["query"]["pages"]
-                        id = list(resultat)[0]
-                        titre = resultat[id]["title"]
-                        if id == "-1" :
-                            resultat = getUrl("https://fr.wikipedia.org/w/api.php?action=opensearch&limit=1&format=json&search=" + req)
-                            if resultat[2] != [] and resultat[2][0] != "" :
-                                e = discord.Embed(description=resultat[2][0], color=0x00ff00)
-                                titre = quote_plus(resultat[1][0])
-                                image = getUrl("https://fr.wikipedia.org/w/api.php?action=query&prop=pageimages&pithumbsize=250&format=json&titles=" + titre)["query"]["pages"]
-                                id = list(image)[0]
-                                if "thumbnail" in image[id] : e.set_image(url=image[id]["thumbnail"]["source"])
-                                await client.send_message(message.channel, embed=e)
-                            else : await client.send_message(message.channel, "Auncun résultat pour cette recherche...")
-                        else :
-                            e = discord.Embed(description=resultat[id]["extract"], color=0x00ff00)
-                            image = getUrl("https://fr.wikipedia.org/w/api.php?action=query&prop=pageimages&pithumbsize=250&format=json&titles=" + req)["query"]["pages"]
+            elif  cmd == 'wiki':
+                if len(args) == 0 : await client.send_message(message.channel, usage(p, cmd))
+                else :
+                    req = quote_plus(arg)
+                    resultat = getUrl("https://fr.wikipedia.org/w/api.php?format=json&action=query&prop=extracts&exsentences=2&explaintext&exintro&redirects=true&titles=" + req)["query"]["pages"]
+                    id = list(resultat)[0]
+                    titre = resultat[id]["title"]
+                    if id == "-1" :
+                        resultat = getUrl("https://fr.wikipedia.org/w/api.php?action=opensearch&limit=1&format=json&search=" + req)
+                        if resultat[2] != [] and resultat[2][0] != "" :
+                            embed = discord.Embed(description=resultat[2][0], color=0x00ff00)
+                            titre = quote_plus(resultat[1][0])
+                            image = getUrl("https://fr.wikipedia.org/w/api.php?action=query&prop=pageimages&pithumbsize=250&format=json&titles=" + titre)["query"]["pages"]
                             id = list(image)[0]
-                            if "thumbnail" in image[id] : e.set_image(url=image[id]["thumbnail"]["source"])
-                            await client.send_message(message.channel, embed=e)                  
-                            
+                            if "thumbnail" in image[id] : embed.set_image(url=image[id]["thumbnail"]["source"])
+                            await client.send_message(message.channel, embed=embed)
+                        else : await client.send_message(message.channel, "Auncun résultat pour cette recherche...")
+                    else :
+                        embed = discord.Embed(description=resultat[id]["extract"], color=0x00ff00)
+                        image = getUrl("https://fr.wikipedia.org/w/api.php?action=query&prop=pageimages&pithumbsize=250&format=json&titles=" + req)["query"]["pages"]
+                        id = list(image)[0]
+                        if "thumbnail" in image[id] : embed.set_image(url=image[id]["thumbnail"]["source"])
+                        await client.send_message(message.channel, embed=embed)                  
                         
-                elif msg.startswith('!fast'):
-                    if serv in chaine :
-                        tmp = ""
-                        for i in chaine[serv] : tmp += i + " "
-                        await client.send_message(message.channel, "Une partie est déja en cours avec la chaîne `" + tmp[:-1] + "`...")
-                    elif len(msg) != 7 :
-                        await client.send_message(message.channel, "Usage : `!fast <niveau>`. Faire `!help fast`pour plus de détails.")
+                    
+            elif cmd == 'fast':
+                if message.channel != spamBot :
+                    if spamBot : await client.send_message(message.channel, "On va quand même pas jouer ici alors qu'il y'a un salon " + spamBot.mention + " !")
+                    else : await client.send_message(message.channel, "Vous pouvez contacter le responsable de ce serveur car à cause de lui aucun salon n'a été configuré pour autoriser cette commande !")
+                elif len(args) != 1 : await client.send_message(message.channel, usage(p, cmd))
+                else :
+                    try : niveau = int(args[0])
+                    except ValueError: await client.send_message(message.channel, usage(p, cmd))
                     else :
-                        try : niveau = int(msg[6])
-                        except ValueError: await client.send_message(message.channel, "Usage : `!fast <niveau>`. Faire `!help fast`pour plus de détails.")
-                        else :
-                            if not(1 <= niveau <= 5) : await client.send_message(message.channel, "Usage : `!fast <niveau>`. Faire `!help fast`pour plus de détails.")
-                            else :             
-                                chaine[serv] = ''
-                                if niveau == 5:
-                                    choix = caracteres[3]
-                                    l = random.randint(20, 30)
+                        if not(1 <= niveau <= 5) : await client.send_message(message.channel, usage(p, cmd))
+                        else :             
+                            chaine = ""
+                            if niveau == 5:
+                                choix = caracteres[3]
+                                l = random.randint(20, 30)
+                            else :
+                                choix = caracteres[niveau - 1]
+                                l = random.randint(10, 20)
+                            i = 0
+                            while i < l:
+                                chaine += random.choice(choix)
+                                i += 1
+                            aff = ""
+                            for c in chaine : aff += c + " "
+                            debut = time.time()
+                            await client.send_message(message.channel, fast + "Chaine à recopier : " + aff[:-1] + "\n\nLes espaces c'est juste pour éviter le copier-coller ;-)")
+                            boucle = True
+                            while boucle :
+                                proposition = await client.wait_for_message(timeout=60-int(time.time()-debut), channel=spamBot)
+                                if proposition == None :
+                                    await client.send_message(message.channel, "Temps écoulé")
+                                    boucle = False
+                                elif proposition.content == chaine :
+                                    await client.send_message(message.channel, "Bien joué " + proposition.author.mention + ", tu as réussi en "+str(round(time.time()-debut, 2))+" secondes !")
+                                    boucle = False
                                 else :
-                                    choix = caracteres[niveau - 1]
-                                    l = random.randint(10, 20)
-                                i = 0
-                                while i < l:
-                                    chaine[serv] += random.choice(choix)
-                                    i += 1
-                                tmp = ""
-                                for i in chaine[serv] : tmp += i + " "
-                                await client.send_message(message.channel, fast + "Chaine à recopier : " + tmp[:-1] + "\n\n Les espaces c'est juste pour éviter le copier-coller ;-)")
-                elif serv in chaine and msg == chaine[serv] :
-                    del(chaine[serv])
-                    await client.send_message(message.channel, 'Gagné ' + message.author.mention + ' !!!')
+                                    await client.add_reaction(proposition, "\N{CROSS MARK}")
 
-                elif msg.startswith('!r2d') :
-                    if len(msg) < 6: await client.send_message(message.channel, "Usage : `!r2d <nombre en chiffres romains>`.")
-                    else :
-                        r = msg.replace('!r2d ', '')
-                        r = r.replace(' ', '').upper()
-                        dico = {"I":1, "V":5, "X":10, "L":50, "C":100, "D":500, "M":1000}
-                        d = 0
-                        erreur = False
-                        i = 0
-                        while i < len(r):
-                            if not(r[i] in dico) :
-                                erreur = True
-                                break
-                            if i == len(r) - 1:
+            elif cmd == 'r2d' :
+                if len(args) == 0 : await client.send_message(message.channel, usage(p, cmd))
+                else :
+                    r = arg
+                    r = r.replace(' ', '').upper()
+                    dico = {"I":1, "V":5, "X":10, "L":50, "C":100, "D":500, "M":1000}
+                    d = 0
+                    erreur = False
+                    i = 0
+                    while i < len(r):
+                        if not(r[i] in dico) :
+                            erreur = True
+                            break
+                        if i == len(r) - 1:
+                            d += dico[r[i]]
+                        else :
+                            if dico[r[i]] < dico[r[i + 1]] :
+                                d -= dico[r[i]]
+                            else :
                                 d += dico[r[i]]
-                            else :
-                                if dico[r[i]] < dico[r[i + 1]] :
-                                    d -= dico[r[i]]
-                                else :
-                                    d += dico[r[i]]
-                            i += 1
-                        if erreur :
-                            await client.send_message(message.channel, "Le nombre entré n'est pas correct.")
-                        else : await client.send_message(message.channel, str(d))
+                        i += 1
+                    if erreur :
+                        await client.send_message(message.channel, "Le nombre entré n'est pas correct.")
+                    else : await client.send_message(message.channel, str(d))
 
 
-                elif msg == "!cnf" :
-                    fact = getUrl("https://www.chucknorrisfacts.fr/api/get?data=tri:alea;nb:1")[0]['fact']
-                    await client.send_message(message.channel, fact)
+            elif cmd == "cnf" :
+                fact = getUrl("https://www.chucknorrisfacts.fr/api/get?data=tri:alea;nb:1")[0]['fact']
+                await client.send_message(message.channel, fact)
 
-                elif msg == "!ud" : await client.send_message(message.channel, "Usage : `!ud <mot>` (`!help ud` pour plus de détails)")
-
-                elif msg.startswith("!ud ") :
-                    url = msg.replace("!ud ", "http://api.urbandictionary.com/v0/define?term=")
-                    definition = getUrl(url)
-                    if definition['result_type'] == 'no_results' : await client.send_message(message.channel, 'Aucun résultat...')
-                    else : await client.send_message(message.channel, definition['list'][0]['definition'])
-
-                elif msg == "!rug" :
-                    data = getUrl("https://randomuser.me/api/?nat=fr")['results'][0]
-                    em = discord.Embed(title=data['name']['first'].capitalize() + " " + data['name']['last'].capitalize(), colour=0x00ff00)
-                    em.set_image(url=data['picture']['large'])
-                    em.add_field(name="adresse mail :", value=data['email'].replace("example.com", random.choice(["gmail.com","yahoo.com","neuf.fr","laposte.net","orange.fr","ovh.net",])), inline=False)
-                    jour, heure = data['dob']['date'].split("T")
-                    jour = jour.split("-")
-                    em.add_field(name="date de naissance :", value=jour[2] + "/" + jour[1] + "/" + jour[0] + " à " + heure[:-1], inline=False)
-                    em.add_field(name="age :", value=str(data['dob']['age']) + " ans", inline=False)
-                    em.add_field(name="numéro de téléphone :", value=data['phone'].replace("-", " "), inline=False)
-                    em.add_field(name="adresse :", value=data['location']['street'] + " à " + data['location']['city'].title(), inline=False)
-                    em.add_field(name="pseudo :", value=data['login']['username'], inline=False)
-                    em.add_field(name="mot de passe :", value=data['login']['password'], inline=False)
-                    await client.send_message(message.channel, embed=em)
-
-                elif msg == "!vps" :
-                    txt = "Je suis allumé depuis " + popen("uptime -p").read().replace("up ","").replace("\n","").replace("hour","heure").replace("day","jour").replace("week","semaine") + ".\n"
-                    txt += "Il me reste " + popen("df -h /").read().split("\n")[1].split()[3] + "o de libre sur mon disque dur.\n"
-                    txt += popen("mpstat").read().split("\n")[3].split()[-1] + "% de mon CPU est diponible.\n"
-                    m = popen("free -m").read().split("\n")[1].split()
-                    txt += "J'ai " + popen("free -mh").read().split("\n")[1].split()[3] + "o de RAM de dispo (soit " + str(round(int(m[3])/int(m[1])*100, 2)) + "%).\n"
-                    txt += "Mon nom d'hôte est " + popen("hostname --fqdn").read().replace("\n","") + ".\n"
-                    await client.send_message(message.channel, txt)
-
-                elif msg.startswith("!gif") :            
-                    if len(msg) == 4 :
-                        loader = await client.send_message(message.channel, "Recherche d'un GIF...")
-                        url = "http://api.giphy.com/v1/gifs/random?api_key=" + secret["giphy-key"]
-                        gif = getUrl(url)['data']
-                        await client.edit_message(loader, "Téléchargement du GIF...")
-                        with open("/home/ribt/python/discord/tmp.gif", "wb") as f : f.write(urlopen(gif['image_url']).read())
-                        await client.edit_message(loader, "Upload du GIF...")
-                        await client.send_file(message.channel, "tmp.gif", filename="random.gif")
-                        await client.delete_message(loader)
-                    
+            elif cmd == "urban" or cmd in alias["urban"] :
+                if len(args) == 0 : await client.send_message(message.channel, usage(p, cmd))
+                else :
+                    data = getUrl("http://api.urbandictionary.com/v0/define?term=" + quote_plus(arg))["list"]
+                    if len(data) == 0 : await client.send_message(message.channel, 'Aucun résultat...')
                     else :
-                        loader = await client.send_message(message.channel, "Recherche d'un GIF...")
-                        req = msg[5:]
-                        url = "http://api.giphy.com/v1/gifs/search?api_key="+ secret["giphy-key"] + "&lang=fr&limit=1&q=" + quote_plus(req)
-                        gif = getUrl(url)['data'][0]
-                        await client.edit_message(loader, "Téléchargement du GIF...")
-                        with open("/home/ribt/python/discord/tmp.gif", "wb") as f : f.write(urlopen(gif['images']['original']['url']).read())
-                        await client.edit_message(loader, "Upload du GIF...")
-                        await client.send_file(message.channel, "tmp.gif", filename=gif['title'].replace(" ", "_")+".gif")
-                        await client.delete_message(loader)
+                        data = data[0]
+                        em = discord.Embed(title="Urban Dictionnary", colour=0x00ff00)
+                        em.add_field(name="Définition :", value=data["definition"], inline=True)
+                        em.add_field(name="Exemple :", value=data["example"], inline=True)
+                        em.add_field(name="Auteur :", value=data["author"], inline=True)
+                        em.add_field(name="Vote :", value=joliStr(data["thumbs_up"])+" \N{THUMBS UP SIGN}   "+joliStr(data["thumbs_down"])+" \N{THUMBS DOWN SIGN}", inline=True)
+                        await client.send_message(message.channel, embed=em)
 
-                elif msg == "!devine" :
-                    if message.channel.name != "spam-bot" :
-                        await client.send_message(message.channel, "On va pas jouer ici alors qu'il y'a un salon qui s'appelle spam-bot !")
-                    else :
-                        if serv in nbr :
-                            await client.send_message(message.channel, "Une partie est déja en cours...")
-                        else :
-                            coups[serv] = {}
-                            nbr[serv] = random.randint(0, 100)
-                            await client.send_message(message.channel, "C'est parti mon kiki ! (devine mon nombre)")
-                elif serv in nbr and message.channel.name == "spam-bot" :
-                    try : proposition = int(msg)
-                    except ValueError : pass
-                    else :
-                        if message.author.id in coups[serv] : coups[serv][message.author.id] += 1
-                        else : coups[serv][message.author.id] = 1
-                        if proposition == nbr[serv] :
-                            del(nbr[serv])
-                            await client.send_message(message.channel, 'Gagné en ' + str(coups[serv][message.author.id]) + ' coups ' + message.author.mention + ' !')
-                        elif nbr[serv] < proposition :
-                            await client.send_message(message.channel, "C'est moins que " + str(proposition))
-                        else :
-                            await client.send_message(message.channel, "C'est plus que " + str(proposition))
+            elif cmd == "rug" :
+                data = getUrl("https://randomuser.me/api/?nat=fr")['results'][0]
+                em = discord.Embed(title=data['name']['first'].capitalize() + " " + data['name']['last'].capitalize(), colour=0x00ff00)
+                em.set_image(url=data['picture']['large'])
+                em.add_field(name="adresse mail :", value=data['email'].replace("example.com", random.choice(["gmail.com","yahoo.com","neuf.fr","laposte.net","orange.fr","ovh.net",])), inline=False)
+                jour, heure = data['dob']['date'].split("T")
+                jour = jour.split("-")
+                em.add_field(name="date de naissance :", value=jour[2] + "/" + jour[1] + "/" + jour[0] + " à " + heure[:-1], inline=False)
+                em.add_field(name="age :", value=str(data['dob']['age']) + " ans", inline=False)
+                em.add_field(name="numéro de téléphone :", value=data['phone'].replace("-", " "), inline=False)
+                em.add_field(name="adresse :", value=data['location']['street'] + " à " + data['location']['city'].title(), inline=False)
+                em.add_field(name="pseudo :", value=data['login']['username'], inline=False)
+                em.add_field(name="mot de passe :", value=data['login']['password'], inline=False)
+                await client.send_message(message.channel, embed=em)
 
-                elif msg.startswith("!weather") :
-                    try :
-                        ville, jours = msg.replace("!weather ", "").split(" ")
-                        jours = int(jours)
-                    except ValueError :
-                        await client.send_message(message.channel, "Usage : !weather <ville> <jours>")
-                    else :
-                        if not(1 <= jours <= 7) : await client.send_message(message.channel, "<jours> doit être un nombre entre 1 et 7")
-                        else :
-                            try : data = feedparser.parse("http://api.meteorologic.net/forecarss?p=" + ville)['entries'][0]['summary']
-                            except IndexError : await client.send_message(message.channel, "Pas de données météo pour cette ville...")
-                            else :
-                                if data == "" : await client.send_message(message.channel, "Pas de données météo pour cette ville...")
-                                else :
-                                    data = data.replace("<strong>", "").replace("</strong>", "").replace("\t", "").replace("<br />", "\n")
-                                    data = data.split("\n\n\n")[:-1]
-                                    data[0] = "\n" + data[0]
-                                    i = 0
-                                    while i < len(data) and i < jours :
-                                        data[i] = data[i].split("\n")[1:-1]
-                                        data[i][0] = "__" + data[i][0][:-1] + "__"
-                                        await client.send_message(message.channel, "\n".join(data[i]))
-                                        i += 1
+            elif cmd == "vps" :
+                txt = "Je suis allumé depuis " + popen("uptime -p").read().replace("up ","").replace("\n","").replace("hour","heure").replace("day","jour").replace("week","semaine") + ".\n"
+                txt += "Il me reste " + popen("df -h /").read().split("\n")[1].split()[3] + "o de libre sur mon disque dur.\n"
+                txt += popen("mpstat").read().split("\n")[3].split()[-1] + "% de mon CPU est diponible.\n"
+                m = popen("free -m").read().split("\n")[1].split()
+                txt += "J'ai " + popen("free -mh").read().split("\n")[1].split()[3] + "o de RAM de dispo (soit " + str(round(int(m[3])/int(m[1])*100, 2)) + "%).\n"
+                txt += "Mon nom d'hôte est " + popen("hostname --fqdn").read().replace("\n","") + ".\n"
+                await client.send_message(message.channel, txt)
 
-                elif msg.startswith("!rot13 ") :
-                    await client.send_message(message.channel, codecs.encode(msg[7:], 'rot_13'))
-
-                elif msg == "!whois" : await client.send_message(message.channel, "Usage : `!whois <nom de domaine>` (`!help whois` pour plus de détails)")
-
-                elif msg.startswith("!whois ") :
-                    dn = msg[7:]
-                    url = "https://www.whoisxmlapi.com/whoisserver/WhoisService?apiKey=" + secret["whois-key"] + "&outputFormat=JSON&domainName=" + dn
-                    try : data = getUrl(url)['WhoisRecord']['registryData']['administrativeContact']['rawText'].split("\n")
-                    except KeyError : await client.send_message(message.channel, 'nom de domaine inconnu...')
-                    else :
-                        txt = tmp = ""
-                        i = 0
-                        while len(tmp) <= 400 and i < len(data):
-                            txt = tmp
-                            tmp += data[i] + "\n"
-                            i += 1
-                        await client.send_message(message.channel, txt)
-
-                elif msg == "!pi" : await client.send_message(message.channel, "3.14159265358979323846264338327950288419716939937510582097494459230781640628620899862803482534211706798214808651328230664709384460955058223172535940812848111745028410270193852110555964462294895493038196442881097566593344612847564823378678316527120190914564856692346034861045432664821339360726024914127372458700660631558817488152092096282925409171536436789259036001133053054882046652138414695194151160")
-
-                elif msg == "!pendu" :
-                    if message.channel.name != "spam-bot" :
-                        await client.send_message(message.channel, "On va quand même pas jouer ici alors qu'il y'a un salon qui s'appelle spam-bot !")
-                    else :
-                        if serv in mot : await client.send_message(message.channel, "Une partie est déjà en cours (" + aff[serv] + ")...")
-                        else :
-                            vies[serv] = len(pendu)
-                            mot[serv] = random.choice(mots)
-                            aff[serv] = ["_"]*len(mot[serv])
-                            await client.send_message(message.channel, "C'est parti ! (N'oubliez pas que je compte les accents et les cédilles ^_^)")
-                            await client.send_message(message.channel, " ".join(aff[serv]).replace("_", r"\_"))
-                            
-                elif message.channel.name == "spam-bot" and serv in mot and len(msg) == 1:
-                    lettre = msg.lower()
-                    if lettre in mot[serv] :
-                        i = 0
-                        while i < len(mot[serv]) :
-                            if mot[serv][i] == lettre : aff[serv][i] = lettre
-                            i += 1
-                        if not "_" in aff[serv] :
-                            del(mot[serv])
-                            await client.send_message(message.channel, "Gagné ^^")
-                    else :
-                        await client.send_message(message.channel, pendu[-vies[serv]])
-                        vies[serv] -= 1
-                        if vies[serv] == 0 :
-                            await client.send_message(message.channel, "PERDU !!! (le mot était... " + mot[serv] + " !)")
-                            del(mot[serv])
-                    
-                    if serv in mot : await client.send_message(message.channel, " ".join(aff[serv]).replace("_", r"\_"))
+            elif cmd == "gif" :            
+                if len(args) == 0 :
+                    loader = await client.send_message(message.channel, "Recherche d'un GIF...")
+                    url = "http://api.giphy.com/v1/gifs/random?api_key=" + secret["giphy-key"]
+                    gif = getUrl(url)['data']
+                    await client.edit_message(loader, "Téléchargement du GIF...")
+                    with open("/home/ribt/python/discord/tmp.gif", "wb") as f : f.write(urlopen(gif['image_url']).read())
+                    await client.edit_message(loader, "Upload du GIF...")
+                    await client.send_file(message.channel, "tmp.gif", filename="random.gif")
+                    await client.delete_message(loader)
                 
-                elif msg.startswith("!role") :
-                    if len(args) < 2 : await client.send_message(message.channel, "Usage : `!role <list|add|remove> [rôle]` (`!help role` pour plus de détails)")
-                    elif args[1] == "list" :
-                        txt = "__Liste des rôles disponibles :__\n\n"
-                        for i in message.server.roles :
-                            if str(i.colour) == "#ffffff" : txt += "- **" + i.name + "**\n"
-                        txt += "\n(Vous pouvez proposer de nouveaux rôles proposer dans " + discord.utils.get(message.server.channels, name='suggestions').mention + " \N{WINKING FACE})"
-                        await client.send_message(message.channel, txt)
-                    elif len(args) < 3 : await client.send_message(message.channel, "Usage : `!role <list|add|remove> [rôle]` (`!help role` pour plus de détails)")
-   
-                    elif args[1] == "add" :
-                        for arg in args[2:] :
-                            role = None
-                            for i in message.server.roles :
-                                if i.name.lower() == arg.lower() : role = i
-                            if role == None : await client.send_message(message.channel, "Le rôle *" + arg + "* n'existe pas encore mais vous pouvez le proposer dans " + discord.utils.get(message.server.channels, name='suggestions').mention + " \N{WINKING FACE}")
-                            elif str(role.colour) != "#ffffff" : await client.send_message(message.channel, "Le rôle *" + arg + "*, t'as pas le droit de le prendre \N{WINKING FACE}")
+                else :
+                    loader = await client.send_message(message.channel, "Recherche d'un GIF...")
+                    url = "http://api.giphy.com/v1/gifs/search?api_key="+ secret["giphy-key"] + "&lang=fr&limit=1&q=" + quote_plus(arg)
+                    gif = getUrl(url)['data'][0]
+                    await client.edit_message(loader, "Téléchargement du GIF...")
+                    with open("/home/ribt/python/discord/tmp.gif", "wb") as f : f.write(urlopen(gif['images']['original']['url']).read())
+                    await client.edit_message(loader, "Upload du GIF...")
+                    await client.send_file(message.channel, "tmp.gif", filename=gif['title'].replace(" ", "_").replace("_GIF", "")+".gif")
+                    await client.delete_message(loader)
+
+            elif cmd == "devine" or cmd in alias["devine"] :
+                if message.channel != spamBot :
+                    if spamBot : await client.send_message(message.channel, "On va quand même pas jouer ici alors qu'il y'a un salon " + spamBot.mention + " !")
+                    else : await client.send_message(message.channel, "Vous pouvez contacter le responsable de ce serveur car à cause de lui aucun salon n'a été configuré pour autoriser cette commande !")
+                else :
+                    coups = 0
+                    nombreChoisis = random.randint(0, 100)
+                    await client.send_message(message.channel, "C'est parti mon kiki ! (devine mon nombre entre 0 et 100)")
+                    boucle = True
+                    while boucle:
+                        proposition = await client.wait_for_message(timeout=60, channel=spamBot)
+                        if proposition == None :
+                            await client.send_message(spamBot, "Vous êtes trop lents ! (Mon nombre était " + str(nombreChoisis) + ".)")
+                            boucle = False
+                        else :
+                           try :
+                                nombreTest = int(proposition.content)
+                                if nombreTest == nombreChoisis : await client.send_message(spamBot, "Gagné en "+str(coups)+" coups "+proposition.author.mention+" !")
+                                elif nombreTest < nombreChoisis : await client.send_message(spamBot, "C'est plus que "+str(nombreTest)+"...")
+                                else : await client.send_message(spamBot, "C'est moins que "+str(nombreTest)+"...")
+                           except ValueError : pass
+
+            elif cmd == "weather" or cmd in alias["weather"] :
+                try :
+                    ville, jours = args
+                    jours = int(jours)
+                except ValueError :
+                    await client.send_message(message.channel, usage(p, cmd))
+                else :
+                    if not(1 <= jours <= 7) : await client.send_message(message.channel, "<jours> doit être un nombre entre 1 et 7")
+                    else :
+                        try : data = feedparser.parse("http://api.meteorologic.net/forecarss?p=" + quote_plus(ville))['entries'][0]['summary']
+                        except IndexError : await client.send_message(message.channel, "Pas de données météo pour cette ville...")
+                        else :
+                            if data == "" : await client.send_message(message.channel, "Pas de données météo pour cette ville...")
                             else :
+                                data = data.replace("<strong>", "").replace("</strong>", "").replace("\t", "").replace("<br />", "\n")
+                                data = data.split("\n\n\n")[:-1]
+                                data[0] = "\n" + data[0]
+                                i = 0
+                                while i < len(data) and i < jours :
+                                    data[i] = data[i].split("\n")[1:-1]
+                                    data[i][0] = "__" + data[i][0][:-1] + "__"
+                                    await client.send_message(message.channel, "\n".join(data[i]))
+                                    i += 1
+
+            elif cmd == "rot13" :
+                if len(args) == 0 : await client.send_message(message.channel, usage(p, cmd))
+                else : await client.send_message(message.channel, codecs.encode(arg, 'rot_13'))
+
+            elif cmd == "whois" :
+                if len(args) != 1 : await client.send_message(message.channel, usage(p, cmd))
+                else :
+                    dn = args[0]
+                    url = "https://www.whoisxmlapi.com/whoisserver/WhoisService?apiKey=" + secret["whois-key"] + "&outputFormat=JSON&domainName=" + quote_plus(dn)
+                    data = getUrl(url)
+                    if "ErrorMessage" in data : await client.send_message(message.channel, "L'API renvoit l'erreur suivante : `"+data["ErrorMessage"]["msg"]+"`.")
+                    else :
+                        data = data['WhoisRecord']
+                        if "dataError" in data : await client.send_message(message.channel, "L'API renvoit l'erreur suivante : `"+data["dataError"]+"`.")
+                        else :
+                            if not "administrativeContact" in data["registryData"] :
+                                txt = "```"+data['registryData']['rawText']+"```"
+                            else :
+                                txt = "```"+data['registryData']['administrativeContact']['rawText']+"```"
+                            if len(txt) > 2000:
+                                txt = txt[:1992]+"```[...]"
+                            await client.send_message(message.channel, txt)
+
+            elif cmd == "pi" : await client.send_message(message.channel, "3.141592653589793238462643383279502884197169399375105820974944592307816406286208998628034825342117067982148086513282306647093844609550582231725359408128481117450284102701938521105559644622948954930381964428810975665933446128475648233786783165271201909145648566923460348610454326648213393607260249141273724587006606315588174881520920962829254091715364367892590360011330530548820466521384146951941511609433057270365759591953092186117381932611793105118548074462379962749567351885752724891227938183011949129833673362440656643086021394946395224737190702179860943702770539217176293176752384674818467669405132000568127145263560827785771342757789609173637178721468440901224953430146549585371050792279689258923542019956112129021960864034418159813629774771309960518707211349999998372978049951059731732816096318595024459455346908302642522308253344685035261931188171010003137838752886587533208381420617177669147303598253490428755468731159562863882353787593751957781857780532171226806613001927876611195909216420198938095257201065485863278865936153381827968230301952035301852968995773622599413891249721775283479131515574857242454150695950829533116861727855889075098381754637464939319255060400927701671139009848824012858361603563707660104710181942955596198946767837449448255379774726847104047534646208046684259069491293313677028989152104752162056966024058038150193511253382430035587640247496473263914199272604269922796782354781636009341721641219924586315030286182974555706749838505494588586926995690927210797509302955321165344987202755960236480665499119881834797753566369807426542527862551818417574672890977772793800081647060016145249192173217214772350141441973568548161361157352552133475741849468438523323907394143334547762416862518983569485562099219222184272550254256887671790494601653466804988627232791786085784383827967976681454100953883786360950680064225125205117392984896084128488626945604241965285022210661186306744278622039194945047123713786960956364371917287467764657573962413890865832645995813390478027590")
+
+            elif cmd == "pendu" :
+                if message.channel != spamBot :
+                    if spamBot : await client.send_message(message.channel, "On va quand même pas jouer ici alors qu'il y'a un salon " + spamBot.mention + " !")
+                    else : await client.send_message(message.channel, "Vous pouvez contacter le responsable de ce serveur car à cause de lui aucun salon n'a été configuré pour autoriser cette commande !")
+                else :
+                    vies = len(pendu)
+                    mot = random.choice(mots)
+                    aff = ["_"]*len(mot)
+                    await client.send_message(message.channel, "C'est parti !")
+                    await client.send_message(message.channel, " ".join(aff).replace("_", r"\_"))
+                    while "_" in aff and vies > 0:
+                        proposition = await client.wait_for_message(timeout=60, channel=spamBot)
+                        if proposition == None :
+                            await client.send_message(spamBot, "Vous êtes trop lents le mot était *" + mot + "* \N{CONFUSED FACE}")
+                            vies = 0
+                        elif len(proposition.content) == 1:
+                            lettre = unidecode(proposition.content).lower()
+                            if lettre in unidecode(mot) :
+                                for i in range(len(aff)) :
+                                    if unidecode(mot[i]) == lettre : aff[i] = mot[i]
+                                await client.send_message(spamBot, " ".join(aff).replace("_", r"\_")) 
+                            else :
+                                await client.send_message(spamBot, pendu[-vies])
+                                await client.send_message(spamBot, " ".join(aff).replace("_", r"\_")) 
+                                vies -= 1
+                                if vies == 0 :
+                                    await client.send_message(spamBot, "PERDU !!! (le mot était... " + mot + " !)")
+                    if not "_" in aff : await client.send_message(spamBot, "Gagné ^^")
+            
+            elif cmd == "role" :
+                if not config["managedRolesColor"] :
+                    await client.send_message(message.channel, "La gestion des rôles par mon humble personne est désactivée sur ce serveur.")
+                    return
+                if len(args) == 0 : await client.send_message(message.channel, usage(p, cmd))
+                elif args[0] == "list" :
+                    txt = "__Liste des rôles disponibles :__\n\n"
+                    aucun = True
+                    for i in message.server.roles :
+                        if str(i.colour) == config["managedRolesColor"] :
+                            txt += "- **" + i.name + "**\n"
+                            aucun = False
+                    if aucun : await client.send_message(message.channel, "Vous ne pouvez vous ajouter aucun rôle.")
+                    else :
+                        if suggestion : txt += "\n(Vous pouvez proposer de nouveaux rôles proposer dans " + suggestion.mention + " \N{WINKING FACE})"
+                        await client.send_message(message.channel, txt)
+                elif len(args) < 2 : await client.send_message(message.channel, usage(p, cmd))
+
+                elif args[0] == "add" :
+                    for arg in args[1:] :
+                        role = None
+                        for i in message.server.roles :
+                            if i.name.lower() == arg.lower() : role = i
+                        if role == None :
+                            if suggestion : await client.send_message(message.channel, "Le rôle *" + arg + "* n'existe pas.")
+                            else : await client.send_message(message.channel, "Le rôle *" + arg + "* n'existe pas encore mais vous pouvez le proposer dans " + suggestion.mention + " \N{WINKING FACE}")
+                        elif str(role.colour) != config["managedRolesColor"] : await client.send_message(message.channel, "Le rôle *" + arg + "*, t'as pas le droit de le prendre \N{WINKING FACE}")
+                        else :
+                            try :
                                 await client.add_roles(message.author, role)
                                 await client.add_reaction(message, u"\N{WHITE HEAVY CHECK MARK}")
-
-                    elif args[1] == "remove" :
-                        for arg in args[2:] :
-                            role = None
-                            for i in message.author.roles :
-                                if i.name.lower() == arg.lower() : role = i
-                            if role == None : await client.send_message(message.channel, "Tu n'as pas le rôle *" + arg + "*...")
-                            else :
-                                await client.remove_roles(message.author, role)
-                                await client.add_reaction(message, u"\N{WHITE HEAVY CHECK MARK}")
-
-                    else : await client.send_message(message.channel, "Usage : `!role <list|add|remove> [rôle]` (`!help role` pour plus de détails)")
-
-                elif msg.startswith("!w3w"):
-                    if len(args) < 2 or len(args) > 3 : await client.send_message(message.channel, "Usage : `!w3w <mot1.mot2.mot3> [langue]` (`!help w3w` pour plus de détails)")
-                    else :
-                        url = "https://api.what3words.com/v2/forward?addr=" + quote_plus(args[1]) + "&key=" + secret["w3w-key"] + "&format=json&display=minimal"
-                        if len(args) == 3 and args[2].lower() != "fr" : url += "&lang=" + quote_plus(args[2].lower())
-                        else : url += "&lang=fr"
-                        gps = getUrl(url)['geometry']
-                        if gps == None : await client.send_message(message.channel, "Aucun résultat avec ces trois mots...")
+                            except discord.errors.Forbidden : await client.send_message(message.channel, "Je n'ai pas le droit de t'ajouter ce rôle \N{LOUDLY CRYING FACE} (va taper un admin)")
+                            
+                elif args[0] == "remove" :
+                    for arg in args[1:] :
+                        role = None
+                        for i in message.author.roles :
+                            if i.name.lower() == arg.lower() : role = i
+                        if role == None : await client.send_message(message.channel, "Tu n'as pas le rôle *" + arg + "*...")
                         else :
-                            lat = str(gps['lat'])
-                            lng = str(gps['lng'])
-                            await client.send_message(message.channel, "coordonées GPS : " + lat + "," + lng)
-                            url = "https://services.gisgraphy.com/reversegeocoding/search?format=json&lat=" + lat + "&lng=" + lng
-                            adresse = getUrl(url)['result'][0]
-                            await client.send_message(message.channel, "adresse complète : " + adresse['formatedFull'])
+                            await client.remove_roles(message.author, role)
+                            await client.add_reaction(message, u"\N{WHITE HEAVY CHECK MARK}")
 
-                elif msg.startswith("!gps"):
-                    if len(args) != 2 : await client.send_message(message.channel, "Usage : `!gps <latitude,longitude>` (`!help gps` pour plus de détails)")
-                    lat, lng = args[1].split(",")
-                    url = "https://api.what3words.com/v2/reverse?coords=" + lat + "," + lng + "&key=" + secret["w3w-key"] + "&lang=fr&format=json&display=minimal"
-                    w3w = getUrl(url)['words']
-                    if w3w == None : await client.send_message(message.channel, "Les coordonnées semblent être incorrectes... Respectez la syntaxe : `!gps <latitude,longitude>`.")
+            elif cmd == "w3w":
+                if not(1 <= len(args) <= 2) or args[0].count(".") != 2: await client.send_message(message.channel, usage(p, cmd))
+                else :
+                    url = "https://api.what3words.com/v2/forward?addr=" + quote_plus(args[0]) + "&key=" + secret["w3w-key"] + "&format=json&display=minimal"
+                    if len(args) == 1 and args[1].lower() != "fr" : url += "&lang=" + quote_plus(args[1].lower())
+                    else : url += "&lang=fr"
+                    gps = getUrl(url)['geometry']
+                    if gps == None : await client.send_message(message.channel, "Aucun résultat avec ces trois mots...")
                     else :
-                        await client.send_message(message.channel, "w3w : " + w3w)              
+                        lat = str(gps['lat'])
+                        lng = str(gps['lng'])
+                        await client.send_message(message.channel, "coordonées GPS : " + lat + "," + lng)
                         url = "https://services.gisgraphy.com/reversegeocoding/search?format=json&lat=" + lat + "&lng=" + lng
                         adresse = getUrl(url)['result'][0]
                         await client.send_message(message.channel, "adresse complète : " + adresse['formatedFull'])
 
-                elif msg == "!speedtest":
-                    loader = await client.send_message(message.channel, "Recherche du meilleur serveur...")
-                    s = speedtest.Speedtest()
-                    s.get_best_server()
-                    await client.edit_message(loader, "Mesure du débit descendant (ça peut prendre un certain temps)...")
-                    s.download()
-                    await client.edit_message(loader, "Mesure du débit montant (ça peut prendre un certain temps)...")
-                    s.upload()
-                    await client.edit_message(loader, "Génération d'une jolie image trop stylée...")
-                    url = s.results.share()
-                    await client.delete_message(loader)
-                    await client.send_message(message.channel, url)
+            elif cmd == "gps":
+                try : lat, lng = arg.split(",")
+                except :
+                    await client.send_message(message.channel, usage(p, cmd))
+                    return
+                url = "https://api.what3words.com/v2/reverse?coords=" + lat + "," + lng + "&key=" + secret["w3w-key"] + "&lang=fr&format=json&display=minimal"
+                w3w = getUrl(url)['words']
+                if w3w == None : await client.send_message(message.channel, "Les coordonnées semblent être incorrectes... Respectez la syntaxe : `"+p+"gps <latitude,longitude>`.")
+                else :
+                    await client.send_message(message.channel, "w3w : " + w3w)              
+                    url = "https://services.gisgraphy.com/reversegeocoding/search?format=json&lat=" + lat + "&lng=" + lng
+                    adresse = getUrl(url)['result'][0]
+                    await client.send_message(message.channel, "adresse complète : " + adresse['formatedFull'])
+
+            elif cmd == "speedtest":
+                loader = await client.send_message(message.channel, "Recherche du meilleur serveur...")
+                s = speedtest.Speedtest()
+                s.get_best_server()
+                await client.edit_message(loader, "Mesure du débit descendant (ça peut prendre un certain temps)...")
+                s.download()
+                await client.edit_message(loader, "Mesure du débit montant (ça peut prendre un certain temps)...")
+                s.upload()
+                await client.edit_message(loader, "Génération d'une jolie image trop stylée...")
+                url = s.results.share()
+                await client.delete_message(loader)
+                await client.send_message(message.channel, "Ma connexion : " + url)
 
 
-                elif msg.startswith("!lmgtfy") or msg.startswith("!lmqtfy") or msg.startswith("!qwant"):
-                    if len(args) < 2 : await client.send_message(message.channel, "Usage : `" + args[0] + " <recherche>` (`!help " + args[0][1:] + "` pour plus de détails)")
+            elif cmd == "lmgtfy" or cmd in alias["lmgtfy"]:
+                if len(args) == 0 : await client.send_message(message.channel, usage(p, cmd))
+                else :
+                    url = "https://api.qwant.com/egp/search/web?count=5&q=" + quote_plus(arg)
+                    resultats = getUrl(url)
+                    if resultats['status'] == "error" : await client.send_message(message.channel, "Une erreur s'est produite, j'espère que c'est pas parce que t'as écrit n'importe quoi \N{WINKING FACE}")
                     else :
-                        recherche = " ".join(args[1:])
-                        url = "https://api.qwant.com/egp/search/web?count=10&q=" + quote_plus(recherche)
-                        resultats = getUrl(url)
-                        if resultats['status'] == "error" : await client.send_message(message.channel, "Une erreur s'est produite, j'espère que c'est pas parce que t'as écrit n'importe quoi \N{WINKING FACE}")
-                        else :
-                            txt = "Voici les 10 premiers liens de ta recherche sur Qwant :\n"
-                            if args[0][3] == "g" : txt +=  "(t'as quand même pas cru que j'allais utiliser Google \N{SMILING FACE WITH OPEN MOUTH AND TIGHTLY-CLOSED EYES})\n"
-                            for i in resultats['data']['result']['items'] : txt += i['url'] + "\n"
-                            txt += "Voilà, voilà..."
-                            await client.send_message(message.channel, txt)
+                        txt = "Voici les 5 premiers liens de ta recherche sur Qwant :\n"
+                        if cmd == "lmgtfy" : txt +=  "(t'as quand même pas cru que j'allais utiliser Google \N{SMILING FACE WITH OPEN MOUTH AND TIGHTLY-CLOSED EYES})\n"
+                        for i in resultats['data']['result']['items'] : txt += i['url'] + "\n"
+                        txt += "Voilà, voilà..."
+                        await client.send_message(message.channel, txt)
 
-                elif msg.startswith("!chr") :
-                    if len(args) != 2 : await client.send_message(message.channel, "Usage : `!chr <c>` (`!help chr` pour plus de détails)")
-                    else :
-                        c = args[1]
-                        await client.send_message(message.channel, "Le caractère `" + c + "` répond au doux nom de **" + unicodedata.name(c) + "** et son code Unicode est **" + str(ord(c)) + "**.")
+            elif cmd == "chr" :
+                if len(args) != 1 or len(args[0]) != 1 : await client.send_message(message.channel, usage(p, cmd))
+                else :
+                    c = arg
+                    try : await client.send_message(message.channel, "Le caractère `" + c + "` répond au doux nom de **" + unicodedata.name(c) + "** et son code Unicode est **" + str(ord(c)) + "**.")
+                    except : await client.send_message(message.channel, "Une erreur s'est produite...")
 
-                elif msg.startswith("!unicode") :
-                    if len(args) != 2 : await client.send_message(message.channel, "Usage : `!unicode <code>` (`!help unicode` pour plus de détails)")
-                    else :
-                        try :
-                            c = chr(int(args[1]))
-                            await client.send_message(message.channel, "Le caractère correspondant au code " + args[1] + " est le suivant : `" + c + "` (" + unicodedata.name(c) + ").")
-                        except (ValueError, OverflowError) : await client.send_message(message.channel, "Aucun caractère ne correspond à ce numéro...")
-
-                elif msg == "!loc" :
-                    l = popen("wc -l tux.py").read().split(" ")[0]
-                    s = popen("ls -lh tux.py").read().split(" ")[4] + "o"
-                    await client.send_message(message.channel, "Mon code source (écrit en Python) comporte actuellement " + joliStr(l) + " lignes (" + s + ").")
-
-                elif msg.startswith("!crypto") :
-                    if len(args) < 2 : await client.send_message(message.channel, "Usage : `!crypto <nom de la monnaie>`")
-                    else :
-                        req = " ".join(args[1:]).lower()
-                        crypto = getUrl("https://api.coinmarketcap.com/v1/ticker/?limit=0")
-                        cid = None
-                        for i in crypto :
-                            if i["id"].lower() == req or i["name"].lower() == req or i["symbol"].lower() == req :
-                                cid = i["id"]
-                        if cid :
-                            data = getUrl("https://api.coinmarketcap.com/v1/ticker/" + cid + "/?convert=EUR")[0]
-                            txt = "**valeur :** " + joliStr(data["price_eur"]) + " € (" + joliStr(data["price_usd"]) + " $ ou encore " + joliStr(data["price_btc"]) + " \u20BF)\n"
-                            if data["percent_change_1h"][0] != "-" : data["percent_change_1h"] = "+" + joliStr(data["percent_change_1h"])
-                            txt += "**évolution depuis 1 h :** " + data["percent_change_1h"] + " %\n"
-                            if data["percent_change_24h"][0] != "-" : data["percent_change_24h"] = "+" + joliStr(data["percent_change_24h"])
-                            txt += "**évolution depuis 24 h :** " + data["percent_change_24h"] + " %\n"
-                            if data["percent_change_7d"][0] != "-" : data["percent_change_7d"] = "+" + joliStr(data["percent_change_7d"])
-                            txt +="**évolution depuis une semaine :** " + data["percent_change_7d"] + " %\n"
-                            txt += "**volume (24 h) :** " + joliStr(data["24h_volume_eur"]) + " €\n"
-                            if data["market_cap_eur"] : txt +="**capitalisation boursière :** " + joliStr(data["market_cap_eur"]) + " €"
-                            embed=discord.Embed(title=data["name"] + " (" + data["symbol"] + ")", description=txt, color=0x00ff00)
-                            await client.send_message(message.channel, embed=embed)
-                        else : await client.send_message(message.channel, "Je n'ai pas trouvé cette crypto-monnaie...")
-
-                elif msg.startswith("!user") :
-                    if len(message.mentions) == 1 :
-                        member = message.mentions[0]
-                        user = await client.get_user_info(member.id)
-                        em = discord.Embed(title=user.name, colour=0x00ff00)
-                        em.set_image(url=user.avatar_url)
-                        if user.bot : em.add_field(name="bot :", value="oui", inline=True)
-                        else : em.add_field(name="bot :", value="non", inline=True)
-                        em.add_field(name="id :", value=user.id, inline=True)
-                        em.add_field(name="discriminator :", value=user.discriminator, inline=True)
-                        em.add_field(name="compte créé le", value=time.strftime("%d/%m/%Y", date.timetuple(user.created_at)), inline=True)
-                        em.add_field(name="serveur rejoint le", value=time.strftime("%d/%m/%Y", date.timetuple(member.joined_at)), inline=True)
-                        em.add_field(name="statut :", value=str(member.status), inline=True)
-                        if member.game : em.add_field(name="jeu :", value=str(member.game), inline=True)
-                        if member.top_role : em.add_field(name="plus grand role :", value=str(member.top_role), inline=True)
-                        if member.nick : em.add_field(name="surnom :", value=member.nick, inline=True)
-                        await client.send_message(message.channel, embed=em)
-                    else : await client.send_message(message.channel, "Usage : `!user @quelqu'un`")
-
-                elif msg == "!life": await client.send_file(message.channel, "life.gif")
-                
-                elif msg == "!gratuit": await client.send_file(message.channel, "gratuit.png")
-
-                elif msg == '!haddock':
-                    with open("haddock.txt","r") as f : c = f.read().split('\n')
-                    await client.send_message(message.channel, random.choice(c))
-
-                elif "modo" in [role.name for role in message.author.roles] and msg.startswith("!mute") :
+            elif cmd == "unicode" :
+                if len(args) != 1 : await client.send_message(message.channel, usage(p, cmd))
+                else :
                     try :
-                        user = message.mentions[0]
-                        if args[2][-1] == "s" : temps = int(args[2][:-1])
-                        elif args[2][-1] == "m" : temps = int(args[2][:-1])*60
-                        elif args[2][-1] == "h" : temps = int(args[2][:-1])*3600
-                        elif args[2][-1] == "j" : temps = int(args[2][:-1])*3600*24
-                        motif = " ".join(args[3:])
-                        with open("mute.json", "r") as f : mute = json.loads(f.read())
-                        mute[user.id] = {}
-                        mute[user.id]['time'] = args[2]
-                        mute[user.id]['by'] = message.author.name
-                        mute[user.id]['expires'] = time.time() + temps
-                        mute[user.id]['motif'] = motif
-                        with open("mute.json", "w") as f : f.write(json.dumps(mute, indent=4))
-                        await client.add_roles(user, discord.utils.get(message.server.roles, name='VilainPasBeau'))
-                    except Exception : await client.send_message(message.channel, "Usage : `!mute <@utilisateur> <temps><s|m|h|j> <motif>`")
-                    await client.add_reaction(message, u"\N{WHITE HEAVY CHECK MARK}")
-                    await client.send_message(user, "Tu a été mute pendant " + args[2] + " par **" + message.author.name + "** pour le motif suivant : *" + motif + "*.")
+                        c = chr(int(arg))
+                        await client.send_message(message.channel, "Le caractère correspondant au code " + arg + " est le suivant : `" + c + "` (" + unicodedata.name(c) + ").")
+                    except (ValueError, OverflowError) : await client.send_message(message.channel, "Aucun caractère ne correspond à ce numéro...")
 
-                elif msg.startswith("!youtube") or msg.startswith("!yt") or msg.startswith("!ytb") :
-                     if len(args) == 1 : await client.send_message(message.channel, "Usage : `!youtube <nom de la vidéo ou de la chaîne à chercher>`.")
-                     else :
-                        txt = " ".join(args[1:])
-                        recherche = getUrl("https://www.googleapis.com/youtube/v3/search?part=snippet&maxResults=1&q=" + quote_plus(txt) + "&key=" + secret["google-key"])["items"][0]["id"]
-                        if recherche == [] : await client.send_message(message.channel, "Aucun résultat...")
-                        else :
-                          if recherche["kind"] == "youtube#channel" :
+            elif cmd == "loc" :
+                l = popen("wc -l tux-v2.py").read().split(" ")[0]
+                s = popen("ls -lh tux-v2.py").read().split(" ")[4] + "o"
+                await client.send_message(message.channel, "Mon code source (écrit en Python) comporte actuellement " + joliStr(l) + " lignes (" + s + ").")
+
+            elif cmd == "crypto" :
+                if len(args) == 0 : await client.send_message(message.channel, usage(p, cmd))
+                else :
+                    req = arg
+                    crypto = getUrl("https://api.coinmarketcap.com/v1/ticker/?limit=0")
+                    cid = None
+                    for i in crypto :
+                        if i["id"].lower() == req or i["name"].lower() == req or i["symbol"].lower() == req : cid = i["id"]
+                    if cid :
+                        data = getUrl("https://api.coinmarketcap.com/v1/ticker/" + cid + "/?convert=EUR")[0]
+                        txt = "**valeur :** " + joliStr(data["price_eur"]) + " € (" + joliStr(data["price_usd"]) + " $ ou encore " + joliStr(data["price_btc"]) + " \u20BF)\n"
+                        if data["percent_change_1h"][0] != "-" : data["percent_change_1h"] = "+" + joliStr(data["percent_change_1h"])
+                        txt += "**évolution depuis 1 h :** " + data["percent_change_1h"] + " %\n"
+                        if data["percent_change_24h"][0] != "-" : data["percent_change_24h"] = "+" + joliStr(data["percent_change_24h"])
+                        txt += "**évolution depuis 24 h :** " + data["percent_change_24h"] + " %\n"
+                        if data["percent_change_7d"][0] != "-" : data["percent_change_7d"] = "+" + joliStr(data["percent_change_7d"])
+                        txt +="**évolution depuis une semaine :** " + data["percent_change_7d"] + " %\n"
+                        txt += "**volume (24 h) :** " + joliStr(data["24h_volume_eur"]) + " €\n"
+                        if data["market_cap_eur"] : txt +="**capitalisation boursière :** " + joliStr(data["market_cap_eur"]) + " €"
+                        embed=discord.Embed(title=data["name"] + " (" + data["symbol"] + ")", description=txt, color=0x00ff00)
+                        await client.send_message(message.channel, embed=embed)
+                    else : await client.send_message(message.channel, "Je n'ai pas trouvé cette crypto-monnaie...")
+
+            elif cmd == "user" or cmd in alias["user"] :
+                if len(message.mentions) == 1 :
+                    member = message.mentions[0]
+                    user = await client.get_user_info(member.id)
+                    em = discord.Embed(title=user.name, colour=0x00ff00)
+                    em.set_image(url=user.avatar_url)
+                    if user.bot : em.add_field(name="bot :", value="oui", inline=True)
+                    else : em.add_field(name="bot :", value="non", inline=True)
+                    em.add_field(name="id :", value=user.id, inline=True)
+                    em.add_field(name="discriminator :", value=user.discriminator, inline=True)
+                    em.add_field(name="compte créé le", value=time.strftime("%d/%m/%Y", date.timetuple(user.created_at)), inline=True)
+                    em.add_field(name="serveur rejoint le", value=time.strftime("%d/%m/%Y", date.timetuple(member.joined_at)), inline=True)
+                    em.add_field(name="statut :", value=str(member.status), inline=True)
+                    if member.game : em.add_field(name="jeu :", value=str(member.game), inline=True)
+                    if member.top_role : em.add_field(name="plus grand role :", value=str(member.top_role), inline=True)
+                    if member.nick : em.add_field(name="surnom :", value=member.nick, inline=True)
+                    await client.send_message(message.channel, embed=em)
+                else : await client.send_message(message.channel, usage(p, cmd))
+
+            elif cmd == "life": await client.send_file(message.channel, "life.gif")
+            
+            elif cmd == "gratuit": await client.send_file(message.channel, "gratuit.png")
+
+            elif cmd == 'haddock':
+                with open("haddock.txt","r") as f : c = f.read().split('\n')
+                await client.send_message(message.channel, random.choice(c))
+
+            elif modo in message.author.roles and cmd == "mute" :
+                if len(message.mentions) != 1 : await client.send_message(message.channel, usage(p, cmd))
+                else :
+                    user = message.mentions[0]
+                    try :
+                        if args[1][-1] == "s" : temps = int(args[1][:-1])
+                        elif args[1][-1] == "m" : temps = int(args[1][:-1])*60
+                        elif args[1][-1] == "h" : temps = int(args[1][:-1])*3600
+                        elif args[1][-1] == "j" : temps = int(args[1][:-1])*3600*24
+                    except ValueError : await client.send_message(message.channel, "Le temps donné est invalide.")
+                    motif = " ".join(args[2:])
+                    em = discord.Embed(title="Confirmation de mute", description="Tu as une minute pour confirmer ou annuler le mute.", colour=0x00ff00)
+                    em.add_field(name="utilisateur :", value=user.name)
+                    em.add_field(name="durée :", value=args[1]+" ("+str(temps)+" secondes)")
+                    em.add_field(name="motif :", value=motif)
+                    demande = await client.send_message(message.channel, embed=em)
+                    await client.add_reaction(demande, "\N{WHITE HEAVY CHECK MARK}")
+                    await client.add_reaction(demande, "\N{CROSS MARK}")
+                    res = await client.wait_for_reaction(user=message.author, timeout=60, message=demande)
+                    if res and str(res.reaction.emoji) == "\N{WHITE HEAVY CHECK MARK}" :
+                        with open("mute.json", "r") as f : mute = json.loads(f.read())
+                        if not serv in mute : mute[serv] = {}
+                        mute[serv][user.id] = {}
+                        mute[serv][user.id]['time'] = args[1]
+                        mute[serv][user.id]['by'] = message.author.name
+                        mute[serv][user.id]['expires'] = time.time() + temps
+                        mute[serv][user.id]['motif'] = motif
+                        with open("mute.json", "w") as f : f.write(json.dumps(mute, indent=4))
+                        if muteRole : 
+                            try : await client.add_roles(user, muteRole)
+                            except discord.errors.Forbidden : await client.send_message(message.channel, "Je n'ai pas le droit de lui ajouter le rôle "+muteRole.mention+" \N{LOUDLY CRYING FACE} (va taper un admin)")
+                        await client.add_reaction(message, u"\N{WHITE HEAVY CHECK MARK}")
+                        await client.delete_message(demande)
+                        await client.send_message(user, "Tu a été mute pendant " + args[1] + " par **" + message.author.name + "** pour le motif suivant : *" + motif + "*.")
+                    else :
+                        await client.send_message(message.channel, "Le mute a été annulé.")
+
+
+            elif modo in message.author.roles and cmd == "unmute" :
+                if len(message.mentions) != 1 : await cient.send_message(message.channel, usage(p, cmd))
+                else :
+                    with open("mute.json", "r") as f : mute = json.loads(f.read())
+                    if message.mention.id in mute[server.id] :
+                        del mute[server.id][message.mention.id]
+                        with open("mute.json", "w") as f : f.write(json.dumps(mute, indent=4))
+                    else : await cient.send_message(message.channel, "Cette personne n'est pas mute...")
+
+
+            elif cmd == "youtube" or cmd in alias["youtube"] :
+                 if len(args) == 0 : await client.send_message(message.channel, usage(p, cmd))
+                 else :
+                    recherche = getUrl("https://www.googleapis.com/youtube/v3/search?part=snippet&maxResults=1&q=" + quote_plus(arg) + "&key=" + secret["google-key"])["items"][0]["id"]
+                    if recherche == [] : await client.send_message(message.channel, "Aucun résultat...")
+                    else :
+                        if recherche["kind"] == "youtube#channel" :
                             channelId = recherche["channelId"]
                             data = getUrl("https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&id=" + channelId + "&key=" + secret["google-key"])["items"][0]
                             em = discord.Embed(title=data["snippet"]["title"], colour=0x00ff00)
@@ -722,13 +892,13 @@ try :
                             em.add_field(name="date de création de la chaîne :", value=data["snippet"]["publishedAt"].replace("T", " à ")[:-5], inline=True)
                             if "country" in data["snippet"] : em.add_field(name="pays :", value=data["snippet"]["country"], inline=True)
                             if not data["statistics"]["hiddenSubscriberCount"] :
-                              em.add_field(name="nombre total de vues :", value=joliStr(data["statistics"]["viewCount"]), inline=True)
-                              em.add_field(name="nombre d'abonnés :", value=joliStr(data["statistics"]["subscriberCount"]), inline=True)
-                              em.add_field(name="nombre de vidéos :", value=joliStr(data["statistics"]["videoCount"]), inline=True)
-                              em.add_field(name="nombre de commentaires postés :", value=joliStr(data["statistics"]["commentCount"]), inline=True)
-                              em.add_field(name="lien :", value="https://www.youtube.com/channel/"+channelId, inline=True)
-                              await client.send_message(message.channel, embed=em)
-                          elif recherche["kind"] == "youtube#video" :
+                                em.add_field(name="nombre total de vues :", value=joliStr(data["statistics"]["viewCount"]), inline=True)
+                                em.add_field(name="nombre d'abonnés :", value=joliStr(data["statistics"]["subscriberCount"]), inline=True)
+                                em.add_field(name="nombre de vidéos :", value=joliStr(data["statistics"]["videoCount"]), inline=True)
+                                em.add_field(name="nombre de commentaires postés :", value=joliStr(data["statistics"]["commentCount"]), inline=True)
+                                em.add_field(name="lien :", value="https://www.youtube.com/channel/"+channelId, inline=True)
+                                await client.send_message(message.channel, embed=em)
+                        elif recherche["kind"] == "youtube#video" :
                             videoId = recherche["videoId"]
                             data = getUrl("https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics,contentDetails&id=" + videoId + "&key=" + secret["google-key"])["items"][0]
                             em = discord.Embed(title=data["snippet"]["title"], colour=0x00ff00)
@@ -756,111 +926,349 @@ try :
                             else : em.add_field(name="contenu sous licence :", value="non", inline=True)
                             em.add_field(name="lien :", value="https://www.youtube.com/watch?v="+videoId, inline=True)
                             await client.send_message(message.channel, embed=em)
-                          else : await client.send_message(message.channel, "Aucun résultat...")
+                        else : await client.send_message(message.channel, "Aucun résultat...")
 
-                elif msg.startswith("!code") :
-                  await client.send_message(message.channel, " Mon code source (en Python) : https://github.com/ribt/ceux-qui-savent-coder-mais-qu-ont-pas-d-idees/blob/master/bots/tux/bot.py")
+            elif cmd == "code" :
+                await client.send_message(message.channel, "Mon code source (en Python) : https://github.com/ribt/ceux-qui-savent-coder-mais-qu-ont-pas-d-idees/blob/master/bots/tux/bot.py")
 
-                elif msg == "!ecris" :
-                  await client.delete_message(message)
-                  await client.send_typing(message.channel)
+            elif cmd == "ecris" :
+                await client.delete_message(message)
+                await client.send_typing(message.channel)
 
-                elif msg.startswith("!defis"):
-                  with open("score.json", "r") as f : score = json.loads(f.read())
-                  with open("flags.json", "r") as f : l = len(json.loads(f.read()))
-                  if len(args) == 1 :
+            elif cmd == "defis":
+                with open("score.json", "r") as f : score = json.loads(f.read())
+                with open("flags.json", "r") as f : l = len(json.loads(f.read()))
+                if len(args) == 0 :
                     leaders = []
+                    pos = 1
+                    exaquo = 0
                     for i in range(10):
-                      best = 0
-                      tmp = None
-                      for userId in score :
-                        if score[userId]["points"] >= best and not userId in leaders:
-                          best = score[userId]["points"]
-                          tmp = userId
-                      if tmp != None : leaders.append(tmp)
-                    txt = "classement de https://ribt.fr/defis/ :\n\n"
+                        best = 0
+                        tmp = None
+                        for userId in score :
+                            if score[userId]["points"] >= best and not userId in [leader["id"] for leader in leaders]:
+                                best = score[userId]["points"]
+                                tmp = userId
+                        if tmp != None :
+                            if len(leaders) == 0 : leaders.append({"pos":1, "id":tmp})
+                            else :
+                                if score[tmp]["points"] == score[leaders[-1]["id"]]["points"] : exaquo += 1 # égalité avec le précédent
+                                else : exaquo = 0
+                                leaders.append({"pos":pos-exaquo, "id":tmp})
+                            pos += 1
+                          
+                              
+                    txt = "classement de https://ribt.fr/defis/ (TOP 10) :\n\n"
                     for leader in leaders:
-                      txt += str(leaders.index(leader)+1) + ". "
-                      txt += "**" + discord.utils.get(message.server.members, id=leader).name + "** "
-                      txt += str(score[leader]["points"]) + " pts ("
-                      txt += str(round(len(score[leader]["reussis"])/l*100)) + " %) \n"
+                        txt += str(leader["pos"]) + ". "
+                        txt += "**" + discord.utils.get(message.server.members, id=leader["id"]).name + "** "
+                        txt += str(score[leader["id"]]["points"]) + " pts ("
+                        txt += str(round(len(score[leader["id"]]["reussis"])/l*100)) + " %) \n"
                     await client.send_message(message.channel, txt)
-                  elif len(message.mentions) == 1 :
+  
+                elif len(message.mentions) == 1 :
                     userId = message.mentions[0].id
                     if not userId in score : await client.send_message(message.channel, "**" + message.mentions[0].name + "** n'a réussi aucun défi donc son score est logiquement de zéro...")
                     else :
-                      txt = "Le score de **" + message.mentions[0].name + "** est actuellement de " + str(score[userId]["points"]) + " points (il a réussi les défis suivants : "
-                      for i in score[userId]["reussis"]:
-                        txt += str(i)
-                        if score[userId]["reussis"].index(i) != len(score[userId]["reussis"])-1 : txt += ", "
-                      txt += ")."
-                      await client.send_message(message.channel, txt)
-                  else : await client.send_message(message.channel, "Usage : `!defis` pour avoir le leaderboard et `!defis @quelqu'un` pour avoir le détail pour une personne.")
+                        txt = "Le score de **" + message.mentions[0].name + "** est actuellement de " + str(score[userId]["points"]) + " points (il a réussi les défis suivants : "
+                        for i in score[userId]["reussis"]:
+                            txt += str(i)
+                            if score[userId]["reussis"].index(i) != len(score[userId]["reussis"])-1 : txt += ", "
+                        txt += ")."
+                        await client.send_message(message.channel, txt)
+                else : await client.send_message(message.channel, usage(p, cmd))
 
-                elif msg.startswith("!qr"):
-                  if len(args) == 1 : await client.send_message(message.channel, "Usage : `!qr <du texte>`.")
-                  else :
-                    data = " ".join(args[1:])
-                    qrcode.make(data).save("qr.png")
+            elif cmd == "qr" :
+                if len(args) == 0 : await client.send_message(message.channel, usage(p, cmd))
+                else :
+                    qrcode.make(arg).save("qr.png")
                     await client.send_file(message.channel, "qr.png")
 
-                elif msg.startswith("!pokemon"):
-                  pokemons = glob("pokemons/*.gif")
-                  file = random.choice(pokemons)
-                  name = search(r"pokemons\/([a-z]+)(-[a-z]+)?\.gif", file).group(1)
-                  await client.send_file(message.channel, file, content="Et ton pokémon est... **" + pokeTrad[name] + "** !")
+            elif cmd == "pokemon" :
+                pokemons = glob("pokemons/*.gif")
+                file = random.choice(pokemons)
+                name = re.search(r"pokemons\/([a-z]+)(-[a-z]+)?\.gif", file).group(1)
+                await client.send_file(message.channel, file, content="Et ton pokémon est... **" + pokeTrad[name] + "** !")
 
-                elif msg.startswith("!table"):
-                  try : n = int(args[1])
-                  except : await client.send_message(message.channel, "Usage : `!table <un chiffre>`.")
-                  txt = "__La table de **" + str(n) + "** :__\n\n"
-                  for i in range(1, 11):
+            elif cmd == "table" :
+                try : n = int(arg)
+                except : await client.send_message(message.channel, usage(p, cmd))
+                txt = "__La table de **" + str(n) + "** :__\n\n"
+                for i in range(1, 11):
                     txt += str(n) + " \N{MULTIPLICATION SIGN} " + str(i) + " = " + str(i*n) + "\n"
-                  await client.send_message(message.channel,  txt)
+                await client.send_message(message.channel,  txt)
 
-                elif match("!(hex|bin|dec|ascii)2(hex|bin|dec|ascii)", msg):
-                  r = match("!(hex|bin|dec|ascii)2(hex|bin|dec|ascii)", msg)
-                  arg = " ".join(args[1:])
-                  try :
-                    if r.group(1) == "hex" : n = int(arg.replace(" ", ""), 16)
-                    elif r.group(1) == "bin" : n = int(arg.replace(" ", ""), 2)
-                    elif r.group(1) == "dec" : n = int(arg.replace(" ", ""))
-                    else :
-                      nchars = len(arg)
-                      n = 0
-                      for i in range(nchars) : n += ord(arg[i]) << 8*(nchars-i-1)
+            elif cmd in ["hex", "dec", "bin", "base32", "base64", "base85", "ascii"] :
+                try :
+                    if cmd == "hex" : n = int(arg.replace(" ", "").replace("0x", ""), 16)
+                    elif cmd == "dec" : n = int(arg)
+                    elif cmd == "bin" : n = int(arg.replace(" ", "").replace("0b", ""), 2)
+                    elif cmd == "base32" :
+                        arg = b32decode(arg).decode("utf-8")
+                        cmd = "ascii"
+                    elif cmd == "base64" :
+                        arg = b64decode(arg).decode("utf-8")
+                        cmd = "ascii"
+                    elif cmd == "base85" :
+                        arg = b85decode(arg).decode("utf-8")
+                        cmd = "ascii"
+                    if cmd == "ascii" :
+                        nchars = len(arg)
+                        n = 0
+                        for i in range(nchars) : n += ord(arg[i]) << 8*(nchars-i-1)
+                except ValueError : await client.send_message("Une erreur s'est produite...")
+                b = str(bin(n))[2:]
 
-                    if r.group(2) == "hex" : await client.send_message(message.channel, str(hex(n)[2:]).upper())
-                    elif r.group(2) == "bin" : await client.send_message(message.channel, str(bin(n))[2:])
-                    elif r.group(2) == "dec" : await client.send_message(message.channel, n)
+                em = discord.Embed(title="Convertisseur de base", colour=0x00ff00)
+                em.add_field(name="hexadécimal :", value=str(hex(n)[2:]).upper())
+                em.add_field(name="binaire :", value=b)
+                em.add_field(name="décimal :", value=str(n))
+                #em.add_field(name="base64 :", value=str(base64.b64encode(bytes([n])))[2:-1])
+                txt = ""
+                size = 1
+                boucle = True
+                while boucle:
+                    try :
+                        for i in (n).to_bytes(size, 'big') : txt += chr(i)
+                        boucle = False
+                    except OverflowError : size += 1
+                em.add_field(name="ASCII :", value=txt)
+                em.add_field(name="base64 :", value=b64encode(bytes(txt.encode())).decode("utf-8"))
+                em.add_field(name="base32 :", value=b32encode(bytes(txt.encode())).decode("utf-8"))
+                em.add_field(name="base85 :", value=b85encode(bytes(txt.encode())).decode("utf-8"))
+                await client.send_message(message.channel, embed=em)
+
+            elif cmd == "savoir":
+                data = getUrl("https://www.savoir-inutile.com/quizz/androidapplilite")
+                em = discord.Embed(title="Savoir inutile", description=data["valcitation"], colour=0x00ff00)
+                for source in data["sources"]:
+                    em.add_field(name="Source "+str(data["sources"].index(source)+1)+" :", value=source["urlsource"], inline=True)
+                await client.send_message(message.channel, embed=em)
+
+            elif cmd == "avatar" :
+                if len(message.mentions) == 0 : url = message.author.avatar_url
+                else : url = message.mentions[0].avatar_url
+                req = Request(url, headers={'User-Agent': "Je n'suis pas un robot (enfin si mais un gentil ^^) !"})
+                with open("avatar.webp", "wb") as f : f.write(urlopen(req).read())
+                im = Image.open("avatar.webp").convert("RGB")
+                im.save("avatar.png")
+                await client.send_file(message.channel, "avatar.png")
+
+            elif cmd == "clear" and modo in message.author.roles :
+                if len(args) == 1:
+                    demande = await client.send_message(message.channel, "Es-tu sûr de ce que tu veux faire (c'est irrémédiable) ?")
+                    await client.add_reaction(demande, "\N{WHITE HEAVY CHECK MARK}")
+                    await client.add_reaction(demande, "\N{CROSS MARK}")
+                    res = await client.wait_for_reaction(user=message.author, timeout=60, message=demande)
+                    if res and str(res.reaction.emoji) == "\N{WHITE HEAVY CHECK MARK}" :
+                        n = int(args[0])+2
+                        try : await client.purge_from(message.channel, limit=n)
+                        except discord.errors.Forbidden : await client.send_message(message.channel, "Je n'ai pas le droit de supprimer des messages \N{LOUDLY CRYING FACE}")
                     else :
-                      txt = ""
-                      size = 1
-                      boucle = True
-                      while boucle:
+                        await client.send_message(message.channel, "La manip a bien été annulée.")
+                else : await client.send_message(message.channel, usage(p, cmd))
+
+            elif cmd == "dis" or cmd in alias["dis"] :
+                if len(args) == 0 : await client.send_message(message.channel, usage(p, cmd))
+                else :
+                    if not message.author.voice.voice_channel : await client.send_message(message.channel, "Va en vocal et refais la commande.")
+                    else :
+                        if client.is_voice_connected(message.server):
+                            voice = client.voice_client_in(message.server)
+                            if voice.channel != message.author.voice.voice_channel :
+                                voice.move_to(message.author.voice.voice_channel)
+                        else :
+                            voice = await client.join_voice_channel(message.author.voice.voice_channel)
+                        if not voice.is_connected() : await client.join_voice_channel(message.author.voice.voice_channel)
+                        url = "http://tts.readspeaker.com/a/speak?key="+secret["tts-key"]+"&lang=fr_fr&voice=Louis&text=" + quote_plus(arg)
                         try :
-                          for i in (n).to_bytes(size, 'big') : txt += chr(i)
-                          boucle = False
-                        except OverflowError : size += 1
-                      await client.send_message(message.channel, txt)
-                  except : await client.send_message(message.channel, "Une erreur s'est produite, vérifiez vos arguments.")
+                            with open("out.mp3", "wb") as f : f.write(urlopen(url).read())
+                            player = voice.create_ffmpeg_player('out.mp3')
+                            player.start()
+                        except urllib.error.HTTPError as error :
+                            if error.code == 503 : await client.send_message(message.channel, "Réessaie plus tard, je n'ai plus de crédit pour l'API \N{LOUDLY CRYING FACE}")
+                            else : raise
+
+            elif cmd == "tts" :
+                url = "http://tts.readspeaker.com/a/speak?key="+secret["tts-key"]+"&lang=fr_fr&voice=Louis&text=" + quote_plus(arg)
+                try :
+                    with open("out.mp3", "wb") as f : f.write(urlopen(url).read())
+                    await client.send_message(message.channel, "out.mp3")
+                except urllib.error.HTTPError as error :
+                    if error.code == 503 : await client.send_message(message.channel, "Réessaie plus tard, je n'ai plus de crédit pour l'API \N{LOUDLY CRYING FACE}")
+                    else : raise
+
+            elif cmd == "emoticon" :
+                with open("emoticons.json", "r") as f : await client.send_message(message.channel, random.choice(json.loads(f.read())))
+
+            elif cmd == "ext" :
+                if len(args) != 1 : await client.send_message(message.channel, usage(p, cmd))
+                else :
+                    arg = arg.lower().replace(".","")
+                    try :
+                        source = unescape(urlopen("https://www.gandi.net/fr/tlds/"+arg+"/rules").read().decode("utf-8"))
+                        if "Erreur 404" in source or "Désolé, l'affichage du prix n'est pas disponible en raison d'une erreur." in source : await client.send_message(message.channel, "Pas d'infos pour cette extension...")
+                        else :
+                            soup = BeautifulSoup(source, "html.parser")
+                            infos = soup.find("ul", {"class": "ProductFeatures-list"}).find_all("p")
+                            champs = soup.find("ul", {"class": "ProductFeatures-list"}).find_all("h3")
+                            em = discord.Embed(title="."+arg, colour=0x00ff00)
+                            for i in range(len(infos)) :
+                                champ = str(champs[i]).replace("<h3>", "").replace("</h3>", "")
+                                if not "Whois" in champ :
+                                    info = re.sub(r"<[^>]*>", "", str(infos[i]))
+                                    em.add_field(name=champ+" :", value=info)
+                            soup = BeautifulSoup(re.search(r'<h3 class="TldRules-title">Les règles</h3>(.*)<h3 class="TldRules-title">', source).group(1), "html.parser")
+                            rules = soup.find_all("strong")[:5]
+                            champs = ["Attribution", "Syntaxe", "IDN (noms de domaine accentués)", "Période d'enregistrement", "Sous-extensions disponibles"]
+                            for i in range(5) :
+                                rule = re.sub(r"<[^>]*>", "", str(rules[i]))
+                                em.add_field(name=champs[i]+" :", value=rule)
+                            await client.send_message(message.channel, embed=em)
+                    except urllib.error.HTTPError as error :
+                        if error.code == 404 : await client.send_message(message.channel, "Pas d'infos pour cette extension...")
+                        else : raise
+                    except : await client.send_message(message.channel, embed=em)
+
+            elif cmd == "config" :
+                if admin == None :
+                    if message.author == message.server.owner and args[:2] != ["set", "TuxAdminRole"] : await client.send_message(message.channel, "\N{WARNING SIGN} Le rôle corespondant à mes administrateurs n'ayant pas encore été configuré seul l'owner du serveur (vous) peut utiliser cette commande.")
+                    else :
+                        await client.send_message(message.channel, "Le rôle corespondant à mes administrateurs n'ayant pas encore été configuré seul l'owner du serveur peut utiliser cette commande.")
+                        return
+                elif not admin in message.author.roles :
+                    await client.send_message(message.channel, "Cette commande est réservée à mes administrateurs (je te dis pas le bordel sinon).")
+                    return
+                if len(args) == 0 :
+                    page = -1
+                    liste = sorted(config.keys())
+                    boucle = True
+                    embed = discord.Embed(title="\N{HAMMER AND WRENCH} Configuration de ma personne", description="Je suis un super bot donc je suis configurable. Pour cela mon super dev a fait une commande `config` qui s'utilise comme cela : `"+p+"config [list|show|reset|set] [paramètre] [valeur]`. La commande `list` fait une simple liste de toutes les options configurables puis `show` permet d'en connaître la valeur actuelle, `reset` remet l'option à sa valeur par défaut et `set` sert à la modifier à ta guise. Mais comme tout ceci est un peu barbant, si la commande `config` est appelée seule c'est ce joli menu interactif qui apparaît pour bien voir et comprendre mes différentes options. Il suffit de naviguer avec les flèches ci-dessous.", color=0x00ff00)
+                    interface = await client.send_message(message.channel, embed=embed)
+                    await client.add_reaction(interface, "\N{BLACK RIGHT-POINTING TRIANGLE}")
+                    res = await client.wait_for_reaction(["\N{BLACK RIGHT-POINTING TRIANGLE}"], user=message.author, timeout=120, message=interface)
+                    while boucle:
+                        if res == None :
+                            boucle = False
+                            await client.delete_message(interface)
+                            break
+                        try : await client.clear_reactions(interface)
+                        except discord.errors.Forbidden : await client.send_message(message.channel, "Je n'ai pas le droit de supprimer les réactions sous me propres messages il va donc falloir que tu enlèves et remettes ta réaction pour continuer et que tu engeules les gestionnaires de ce serveur.")
+                        emo = str(res.reaction.emoji)
+                        if emo == "\N{BLACK LEFT-POINTING TRIANGLE}" : page -= 1
+                        elif emo == "\N{BLACK RIGHT-POINTING TRIANGLE}" : page += 1
+                        if page == len(liste) :
+                            embed = discord.Embed(color=0x00ff00)
+                            embed.add_field(name="Et voilà c'est fini ^^", value="** **")
+                            embed.add_field(name="Il ne te reste plus qu'a tout configurer avec `"+p+"config [list|show|reset|set] [paramètre] [valeur]`", value="** **")
+                        elif page < 0:
+                            embed = discord.Embed(title="\N{HAMMER AND WRENCH} Configuration de ma personne", description="Je suis un super bot donc je suis configurable. Pour cela mon super dev a fait une commande `config` qui s'utilise comme cela : `"+p+"config [list|show|reset|set] [paramètre] [valeur]`. La commande `list` fait une simple liste de toutes les options configurables puis `show` permet d'en connaître la valeur actuelle, `reset` remet l'option à sa valeur par défaut et `set` sert à la modifier à ta guise. Mais comme tout ceci est un peu barbant, si la commande `config` est appelée seule c'est ce joli menu interactif qui apparaît pour bien voir et comprendre mes différentes options. Il suffit de naviguer avec les flèches ci-dessous.", color=0x00ff00)
+                        else :
+                            embed = discord.Embed(title="\N{HAMMER AND WRENCH} Configuration de ma personne", color=0x00ff00)
+                            param = liste[page]
+                            embed.add_field(name="Nom de l'option : ", value="`"+param+"`", inline=True)
+                            embed.add_field(name="Type : ", value=configInfos[param][0], inline=True)
+                            embed.add_field(name="Description : ", value=configInfos[param][1], inline=True)
+                            embed.add_field(name="Valeur par défaut : ", value=str(defaultConfig[param]), inline=True)
+                            if configInfos[param][0] == "role" and config[param] : txt = discord.utils.get(message.server.roles, id=config[param]).mention
+                            elif configInfos[param][0] == "channel" and config[param] : txt = discord.utils.get(message.server.channels, id=config[param]).mention
+                            else : txt = str(config[param])
+                            embed.add_field(name="Valeur actuelle : ", value=txt, inline=True)
+                        embed.set_footer(text="\N{BOOKMARK TABS} page "+str(page+1)+"/"+str(len(liste)+1))
+                        interface = await client.edit_message(interface, embed=embed)
+                        if page > -1 : await client.add_reaction(interface, "\N{BLACK LEFT-POINTING TRIANGLE}")
+                        if page < len(liste) : await client.add_reaction(interface, "\N{BLACK RIGHT-POINTING TRIANGLE}")
+                        res = await client.wait_for_reaction(["\N{BLACK LEFT-POINTING TRIANGLE}","\N{BLACK RIGHT-POINTING TRIANGLE}"], user=message.author, timeout=120, message=interface)
+                        if res == None :
+                            boucle = False
+                            await client.delete_message(interface)
+                else :
+                    if args[0] == "list" :
+                        txt = "Voici la liste de mes options configurables (cela peut évoluer avec le temps) :\n"
+                        for param in sorted(config.keys()) :
+                            txt += "\n- `"+param+"`"
+                        await client.send_message(message.channel, txt)
+
+                    if args[0] == "show" :
+                        if len(args) != 2 : await client.send_message(message.channel, "Usage : `"+p+"config show <paramètre>`.")
+                        else :
+                            if args[1] in config : await client.send_message(message.channel, args[1]+" = "+str(config[args[1]]))
+                            else : client.send_message(message.channel, "Je n'ai pas ce paramètre dans ma liste.")
+
+                    if args[0] == "reset" :
+                        if len(args) != 2 : await client.send_message(message.channel, "Usage : `"+p+"config reset <paramètre>`.")
+                        else :
+                            if args[1] in config :
+                                demande = await client.send_message(message.channel, "Es-tu sûr de ce que tu veux faire (c'est irrémédiable) ?")
+                                await client.add_reaction(demande, "\N{WHITE HEAVY CHECK MARK}")
+                                await client.add_reaction(demande, "\N{CROSS MARK}")
+                                res = await client.wait_for_reaction(user=message.author, timeout=60, message=demande)
+                                if res == None or str(res.reaction.emoji) != "\N{WHITE HEAVY CHECK MARK}" :
+                                    await client.send_message(message.channel, "Le reset a été annulé.")
+                                else :
+                                    with open("config.json", "r") as f : config = json.loads(f.read())
+                                    config[message.server.id][args[1]] = defaultConfig[args[1]]
+                                    with open("config.json", "w") as f : f.write(json.dumps(config, indent=4))
+                            else : client.send_message(message.channel, "Je n'ai pas ce paramètre dans ma liste.")
+
+                    if args[0] == "set" :
+                        if len(args) < 3 :
+                            await client.send_message(message.channel, "Usage : `"+p+"config set <paramètre> <valeur>`.")
+                            return
+                        if not args[1] in config :
+                            await client.send_message(message.channel, "Je n'ai pas ce paramètre dans ma liste.")
+                            return
+                        valeur = " ".join(args[2:])
+                        paramType = configInfos[args[1]][0]
+                        if paramType == "int" or paramType == "percent" :
+                            try : valeur = int(valeur)
+                            except ValueError :
+                                await client.send_message(message.channel, "Ce paramètre attend un nombre entier.")
+                                return
+                            if configInfos[args[1]][0] == "percent" :
+                                if not 0 <= valeur <= 100 :
+                                    await client.send_message(message.channel, "Ce paramètre attend un nombre entre 0 et 100.")
+                                    return
+                        elif paramType == "role":
+                            if len(message.role_mentions) != 1 :
+                                await client.send_message(message.channel, "Ce paramètre attend un rôle.")
+                                return
+                            valeur = message.role_mentions[0].id
+                        elif paramType == "channel":
+                            if len(message.channel_mentions) != 1 :
+                                await client.send_message(message.channel, "Ce paramètre attend un salon.")
+                                return
+                            valeur = message.channel_mentions[0].id
+                        elif paramType == "color":
+                            valeur = valeur.lower()
+                            if not re.fullmatch("#[0-9a-f]{6}", valeur) :
+                                await client.send_message(message.channel, "Ce paramètre attend une couleur sous la forme `#ffffff`.")
+                                return
+                        with open("config.json", "r") as f : config = json.loads(f.read())
+                        config[message.server.id][args[1]] = valeur
+                        with open("config.json", "w") as f : f.write(json.dumps(config, indent=4))
+                        await client.add_reaction(message, u"\N{WHITE HEAVY CHECK MARK}")
 
 
 
 
 
 
+            # ^ nouvelles commandes ici ^
 
-                # ^ nouvelles commandes ici ^
-
-                elif len(msg) > 2 and msg[0] == '!' :
-                   await client.send_message(message.channel, 'A tes souhaits ' + message.author.mention + ' !')
-
-                ancienmsg[serv] = msg
+            #elif len(msg) > 2 and msg[0] == p : await client.send_message(message.channel, 'À tes souhaits ' + message.author.mention + ' !')
                 
         except Exception :
-            txt = time.strftime('[%d/%m/%Y %H:%M:%S]\n') + format_exc() + "\n\n"
+            txt = time.strftime('[%d/%m/%Y %H:%M:%S]\n')
+            txt += "erreur sur le serv **" + message.server.name + "** suite à un message de **" + message.author.name + "** (`" + message.content.replace("```", "\`\`\`") + "`).\nVoici le détail :```Python\n"
+            txt += format_exc() + "```\n\n"
             with open("log/erreurs.txt","a") as f : f.write(txt)
+            while len(txt) > 2000 :
+                await client.send_message(ribt, txt[:2000])
+                txt = txt[2000:]
+            if txt != "" : await client.send_message(ribt, txt)
+            await client.send_message(message.channel, "Une erreur inatendue s'est produite, désolé de la gêne occasionnée \N{CONFUSED FACE}")
+
                 
 
     #client.loop.create_task(actu())
@@ -869,5 +1277,5 @@ except Exception :
     txt = "\n\n##########[ERREUR FATALE]##########\n" + time.strftime('[%d/%m/%Y %H:%M:%S]') + format_exc() + "\n\n"
     with open("log/erreurs.txt","a") as f : f.write(txt)
     time.sleep(60*10)
-    with open("log/erreurs.txt","a") as f : f.write(time.strftime('[%d/%m/%Y %H:%M:%S]') + " Tux va tenter de redemarrer\n")
+    with open("log/erreurs.txt","a") as f : f.write(time.strftime('[%d/%m/%Y %H:%M:%S]') + " Tux va tenter de redémarrer\n")
 popen("./restart-tux.sh")
