@@ -46,6 +46,7 @@ commandes = {"ascii":      ["<texte>",                                       "Je
              "emoticon":   ["",                                              "Je t'envoies un des 4404 jolis emoticons que je connais."],
              "ext":        ["<extension>",                                   "Je t'envois plein d'infos croustillantes sur une extension de nom de domaine (`.fr`, `.com`...) totalement pompées sur https://www.gandi.net/."],
              "fast":       ["<niveau>",                                      aide_fast],
+             "friend":     ["<@user1> <@user2>",                             "Je calcule le pourcentage d'amitié entre les deux personnes."],
              "gif":        ["[<termes à rechercher>]",                       "Je vais te chercher un GIF sur https://giphy.com/ (une recherche vide donne un GIF aléatoire)."],
              "gps":        ["<latitude,longitude>",                          "Je te donne les trois mots what3words et l'adresse postale correspondants aux coordonnées GPS."],
              "haddock":    ["",                                              "Un des nombreux jurons du capitaine Haddock"],
@@ -54,6 +55,7 @@ commandes = {"ascii":      ["<texte>",                                       "Je
              "hex":        ["<hexadécimal>",                                 "Je te convertis ton nombre (en hexadécimal) en d'autres bases."],
              "lmgtfy":     ["<termes à rechercher>",                         "Let Me Google That For You, je fais une recherche sur Internet pour toi (avec Qwant bien entendu)."],
              "loc":        ["",                                              "Lines Of Code, je te dis combien de lignes comporte actuellement mon programme Python."],
+             "love":       ["<@user1> <@user2>",                             "Je calcule le pourcentage d'amour entre les deux personnes."],
              "mute":       ["<@utilisateur> <temps><s|m|h|j> <motif>",       "**uniquement pour les modérateurs**\nPour mute temporairement quelqu'un."],
              "ping":       ["",                                              "Je te donne le temps qui s'écoule entre le moment où tu postes ton message et celui où je le reçois."],
              "proverbe":   ["[add <Votre proverbe.>]",                       "Je te donne un proverbe au hasard parmis ceux que je connais ou alors tu m'en apprends un nouveau."],
@@ -1248,6 +1250,18 @@ try :
                         config[message.server.id][args[1]] = valeur
                         with open("config.json", "w") as f : f.write(json.dumps(config, indent=4))
                         await client.add_reaction(message, u"\N{WHITE HEAVY CHECK MARK}")
+
+            if cmd == "friend" :
+                if len(message.mentions) != 2 : await client.send_message(message.channel, usage(p, cmd))
+                else :
+                    prct = (int(message.mentions[0].id[3:6]) + int(message.mentions[1].id[3:6])) % 1000 / 10
+                    await client.send_message(message.channel, "\N{SLIGHTLY SMILING FACE} Il y'a **"+str(prct)+" %** d'amitié entre **"+message.mentions[0].name+"** et **"+message.mentions[1].name+"** \N{SLIGHTLY SMILING FACE}")
+
+            if cmd == "love" :
+                if len(message.mentions) != 2 : await client.send_message(message.channel, usage(p, cmd))
+                else :
+                    prct = (int(message.mentions[0].id[8:11]) + int(message.mentions[1].id[8:11])) % 1000 / 10
+                    await client.send_message(message.channel, "\N{HEAVY BLACK HEART} Il y'a **"+str(prct)+" %** d'amour entre **"+message.mentions[0].name+"** et **"+message.mentions[1].name+"** \N{HEAVY BLACK HEART}")
 
 
 
