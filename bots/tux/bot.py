@@ -39,7 +39,7 @@ commandes = {"ascii":      ["<texte>",                                       "Je
              "clear":      ["<nombre>",                                      "**uniquement pour les modérateurs**\nJe supprime les <nombre> derniers messages dans le salon où la commande a été effectuée."],
              "crypto":     ["<nom>",                                         "Je te donne des infos sur l'état actuel de la crypto monnaie."],
              "date":       ["",                                              "la date d'aujourd'hui, tout simplement ^^"],
-             "dec":        ["<bombre décimal>",                              "Je te convertis ton nombre (décimal) en d'autres bases."],
+             "dec":        ["<nombre décimal>",                              "Je te convertis ton nombre (décimal) en d'autres bases."],
              "defis":      ["[@quelqu'un]",                                  "Cette commande va de paire avec https://ribt.fr/defis/\nJe te donne le leaderboard ou le détail pour la personne mentionnée."],
              "devine":     ["",                                              "Un super jeu ! (Je choisis un nombre entre 0 et 100 et tu dois le deviner)."],
              "dis":        ["<du blabla>",                                   "Je te lis le texte en vocal."],
@@ -53,6 +53,7 @@ commandes = {"ascii":      ["<texte>",                                       "Je
              "help":       ["[<commande>]",                                  "Je te donne la liste des commandes disponibles ou toutes les infos sur une commande."],
              "heure":      ["",                                              "l'heure qu'il est, tout simplement ^^"],
              "hex":        ["<hexadécimal>",                                 "Je te convertis ton nombre (en hexadécimal) en d'autres bases."],
+             "ljdc":       ["",                                              "Les Joies Du Code, un super GIF piqué sur https://lesjoiesducode.fr/"],
              "lmgtfy":     ["<termes à rechercher>",                         "Let Me Google That For You, je fais une recherche sur Internet pour toi (avec Qwant bien entendu)."],
              "loc":        ["",                                              "Lines Of Code, je te dis combien de lignes comporte actuellement mon programme Python."],
              "love":       ["<@user1> <@user2>",                             "Je calcule le pourcentage d'amour entre les deux personnes."],
@@ -64,16 +65,16 @@ commandes = {"ascii":      ["<texte>",                                       "Je
              "role":       ["<list|add|remove> [rôle1] [rôle2] [rôle3] ...", "Je liste tous les rôles disponibles ou je t'ajoute/enlève celui/ceux que tu me demandes."],
              "roll":       ["",                                              "Je te fournis un nombre (pseudo-)aléatoire entre 0 et 100."],
              "rot13":      ["<texte>",                                       "Je te chiffre/déchiffre ton message en ROT13."],
+             "rug":        ["",                                              "Random User Generator, Je te fournis une identité aléatoire un peu crédible si tu veux te faire des faux papiers."],
              "savoir":     ["",                                              "Je te raconte une petite anecdote piochée sur https://www.savoir-inutile.com/"],
              "speedtest":  ["",                                              "Je me la pète un peu avec ma conexion de taré \N{FACE WITH STUCK-OUT TONGUE AND WINKING EYE}"],
-             "vps":        ["",                                              "Je te donne quelques infos essentielles sur le VPS qui m'héberge."],
-             "rug":        ["",                                              "Random User Generator, Je te fournis une identité aléatoire un peu crédible si tu veux te faire des faux papiers."],
              "table":      ["<un chiffre>",                                  "Je te montre la table de multiplication de ce chiffre."],
              "tts":        ["<du blabla>",                                   "Je t'envois un petit fichier MP3 où je lis ton blabla."],
              "unmute":     ["<@quelqu'un>",                                  "**uniquement pour les modérateurs**\nPour unmute dès maintenant quelqu'un qui est toujours mute."],
              "urban":      ["<an English word>",                             "Je te donne la définition du mot sur Urban Dictionnary (en anglais)."],
              "unicode":    ["<code décimal>",                                "Je renvois le caractère correspondant au code Unicode donné."],
              "user":       ["@mention",                                      "Je te donne quelques infos sur la personne emntionnée."],
+             "vps":        ["",                                              "Je te donne quelques infos essentielles sur le VPS qui m'héberge."],
              "w3w":        ["<mot1.mot2.mot3> [langue]",                     "Je te donne les coordonnées GPS et l'adresse postale du lieu à partir des ses trois mots what3words. La langue est le code ISO 639-1 de deux lettres coorespondant. Ce paramètre est facultatif si les mots sont français. Plus d'infos sur https://what3words.com/fr/a-propos/"],
              "weather":    ["<ville> <jours>",                               "Je te prédis la météo de la ville pendant un certain nombre de jours (pas plus de 7 non plus, faut pas déconner non plus)."],
              "whois":      ["<nom de domaine>",                              "Je te donne queqlues infos sur le nom de domaine"],
@@ -91,7 +92,7 @@ alias = {"devine":  ["+ou-"],
          "youtube": ["ytb", "yt"]
          }
 
-configInfos = {"prefix":             ["int", "Le préfixe pour utiliser une des mes commandes."],
+configInfos = {"prefix":             ["text", "Le préfixe pour utiliser une des mes commandes."],
                "welcomeMP":          ["text", "Le message que j'envois aux nouveaux quand ils rejoignent le serv."],
                "modoRole":           ["role", "Le rôle que doivent avoir ceux qui peuvent utiliser mes commandes de modération."],
                "TuxAdminRole":       ["role", "Le rôle que l'on doit avoir pour utiliser la sacro-sainte commande `config`."],
@@ -313,11 +314,13 @@ try :
                         emo = str(res.reaction.emoji)
                         if emo == "\N{BLACK LEFT-POINTING TRIANGLE}" : page -= 1
                         elif emo == "\N{BLACK RIGHT-POINTING TRIANGLE}" : page += 1
-                        if page == pageMax :
+                        if page >= pageMax :
+                            page = pageMax
                             embed = discord.Embed(color=0x00ff00)
                             embed.add_field(name="Et voilà c'est fini ^^", value="** **")
                             embed.add_field(name="C'était cool, hein ?", value="** **")
                         elif page < 0:
+                            page = -1
                             embed = discord.Embed(title="Super menu help", description="Bienvenue dans ce superbe menu help ^^\nVous pouvez naviguez de page en page avec les réactions ci-dessous. Si vous voulez **ENCORE PLUS** de détails sur une commande, vous pouvez faire `"+p+"help <commande>`.", color=0x00ff00)
                         else :
                             embed = discord.Embed(title="Super menu help", color=0x00ff00)
@@ -886,7 +889,7 @@ try :
                             channelId = recherche["channelId"]
                             data = getUrl("https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&id=" + channelId + "&key=" + secret["google-key"])["items"][0]
                             em = discord.Embed(title=data["snippet"]["title"], colour=0x00ff00)
-                            em.set_image(url=data["snippet"]["thumbnails"]["high"]["url"])
+                            #em.set_image(url=data["snippet"]["thumbnails"]["high"]["url"])
                             em.add_field(name="id :", value=data["id"], inline=True)
                             desc = data["snippet"]["description"]
                             if len(desc) < 1000 : em.add_field(name="description :", value=desc, inline=True)
@@ -898,13 +901,13 @@ try :
                                 em.add_field(name="nombre d'abonnés :", value=joliStr(data["statistics"]["subscriberCount"]), inline=True)
                                 em.add_field(name="nombre de vidéos :", value=joliStr(data["statistics"]["videoCount"]), inline=True)
                                 em.add_field(name="nombre de commentaires postés :", value=joliStr(data["statistics"]["commentCount"]), inline=True)
-                                em.add_field(name="lien :", value="https://www.youtube.com/channel/"+channelId, inline=True)
                                 await client.send_message(message.channel, embed=em)
+                                await client.send_message(message.channel, "https://www.youtube.com/channel/"+channelId)
                         elif recherche["kind"] == "youtube#video" :
                             videoId = recherche["videoId"]
                             data = getUrl("https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics,contentDetails&id=" + videoId + "&key=" + secret["google-key"])["items"][0]
                             em = discord.Embed(title=data["snippet"]["title"], colour=0x00ff00)
-                            em.set_image(url=data["snippet"]["thumbnails"]["high"]["url"])
+                            #em.set_image(url=data["snippet"]["thumbnails"]["high"]["url"])
                             em.add_field(name="id :", value=data["id"], inline=True)
                             desc = data["snippet"]["description"]
                             if len(desc) < 1000 : em.add_field(name="description :", value=desc, inline=True)
@@ -926,8 +929,8 @@ try :
                             em.add_field(name="catégorie :", value=ytCategories[data["snippet"]["categoryId"]], inline=True)
                             if data["contentDetails"]["licensedContent"] : em.add_field(name="contenu sous licence :", value="oui", inline=True)
                             else : em.add_field(name="contenu sous licence :", value="non", inline=True)
-                            em.add_field(name="lien :", value="https://www.youtube.com/watch?v="+videoId, inline=True)
                             await client.send_message(message.channel, embed=em)
+                            await client.send_message(message.channel, "https://www.youtube.com/watch?v="+videoId)
                         else : await client.send_message(message.channel, "Aucun résultat...")
 
             elif cmd == "code" :
@@ -1116,15 +1119,15 @@ try :
                             champs = soup.find("ul", {"class": "ProductFeatures-list"}).find_all("h3")
                             em = discord.Embed(title="."+arg, colour=0x00ff00)
                             for i in range(len(infos)) :
-                                champ = str(champs[i]).replace("<h3>", "").replace("</h3>", "")
+                                champ = champs[i].string
                                 if not "Whois" in champ :
-                                    info = re.sub(r"<[^>]*>", "", str(infos[i]))
+                                    info = re.sub(r"<[^>]*>", "", infos[i].string)
                                     em.add_field(name=champ+" :", value=info)
                             soup = BeautifulSoup(re.search(r'<h3 class="TldRules-title">Les règles</h3>(.*)<h3 class="TldRules-title">', source).group(1), "html.parser")
                             rules = soup.find_all("strong")[:5]
                             champs = ["Attribution", "Syntaxe", "IDN (noms de domaine accentués)", "Période d'enregistrement", "Sous-extensions disponibles"]
                             for i in range(5) :
-                                rule = re.sub(r"<[^>]*>", "", str(rules[i]))
+                                rule = re.sub(r"<[^>]*>", "", rules[i].string)
                                 em.add_field(name=champs[i]+" :", value=rule)
                             await client.send_message(message.channel, embed=em)
                     except urllib.error.HTTPError as error :
@@ -1134,7 +1137,7 @@ try :
 
             elif cmd == "config" :
                 if admin == None :
-                    if message.author == message.server.owner and args[:2] != ["set", "TuxAdminRole"] : await client.send_message(message.channel, "\N{WARNING SIGN} Le rôle corespondant à mes administrateurs n'ayant pas encore été configuré seul l'owner du serveur (vous) peut utiliser cette commande.")
+                    if message.author == message.server.owner : await client.send_message(message.channel, "\N{WARNING SIGN} Le rôle corespondant à mes administrateurs n'ayant pas encore été configuré seul l'owner du serveur (vous) peut utiliser cette commande.")
                     else :
                         await client.send_message(message.channel, "Le rôle corespondant à mes administrateurs n'ayant pas encore été configuré seul l'owner du serveur peut utiliser cette commande.")
                         return
@@ -1191,13 +1194,13 @@ try :
                             txt += "\n- `"+param+"`"
                         await client.send_message(message.channel, txt)
 
-                    if args[0] == "show" :
+                    elif args[0] == "show" :
                         if len(args) != 2 : await client.send_message(message.channel, "Usage : `"+p+"config show <paramètre>`.")
                         else :
                             if args[1] in config : await client.send_message(message.channel, args[1]+" = "+str(config[args[1]]))
                             else : client.send_message(message.channel, "Je n'ai pas ce paramètre dans ma liste.")
 
-                    if args[0] == "reset" :
+                    elif args[0] == "reset" :
                         if len(args) != 2 : await client.send_message(message.channel, "Usage : `"+p+"config reset <paramètre>`.")
                         else :
                             if args[1] in config :
@@ -1213,7 +1216,7 @@ try :
                                     with open("config.json", "w") as f : f.write(json.dumps(config, indent=4))
                             else : client.send_message(message.channel, "Je n'ai pas ce paramètre dans ma liste.")
 
-                    if args[0] == "set" :
+                    elif args[0] == "set" :
                         if len(args) < 3 :
                             await client.send_message(message.channel, "Usage : `"+p+"config set <paramètre> <valeur>`.")
                             return
@@ -1250,19 +1253,31 @@ try :
                         config[message.server.id][args[1]] = valeur
                         with open("config.json", "w") as f : f.write(json.dumps(config, indent=4))
                         await client.add_reaction(message, u"\N{WHITE HEAVY CHECK MARK}")
+                    else : await client.send_message(message.channel,  "Usage : `"+p+"config [list|show|reset|set] [paramètre] [valeur]`")
 
-            if cmd == "friend" :
+            elif cmd == "friend" :
                 if len(message.mentions) != 2 : await client.send_message(message.channel, usage(p, cmd))
                 else :
                     prct = (int(message.mentions[0].id[3:6]) + int(message.mentions[1].id[3:6])) % 1000 / 10
                     await client.send_message(message.channel, "\N{SLIGHTLY SMILING FACE} Il y'a **"+str(prct)+" %** d'amitié entre **"+message.mentions[0].name+"** et **"+message.mentions[1].name+"** \N{SLIGHTLY SMILING FACE}")
 
-            if cmd == "love" :
+            elif cmd == "love" :
                 if len(message.mentions) != 2 : await client.send_message(message.channel, usage(p, cmd))
                 else :
                     prct = (int(message.mentions[0].id[8:11]) + int(message.mentions[1].id[8:11])) % 1000 / 10
                     await client.send_message(message.channel, "\N{HEAVY BLACK HEART} Il y'a **"+str(prct)+" %** d'amour entre **"+message.mentions[0].name+"** et **"+message.mentions[1].name+"** \N{HEAVY BLACK HEART}")
 
+            elif cmd == "ljdc" :
+                source = unescape(urlopen("https://lesjoiesducode.fr/").read().decode("utf-8"))
+                soup = BeautifulSoup(source, "html.parser")
+                randomUrl = re.search('href="([^"]+)"', str(soup.find("i", {"class": "fas fa-random"}).parent)).group(1)
+                source = unescape(urlopen(randomUrl).read().decode("utf-8"))
+                soup = BeautifulSoup(source, "html.parser")
+                commentaire = soup.find("h1", {"class": "blog-post-title"}).string
+                fileUrl = re.search('<img[^>]*src="([^"]+)"/>', str(soup.find("div", {"class": "blog-post-content"}))).group(1)
+                em = discord.Embed(title="les_joies_du_code();", description=commentaire, colour=0x00ff00)
+                em.set_image(url=fileUrl)
+                await client.send_message(message.channel, embed=em)
 
 
 
@@ -1270,7 +1285,7 @@ try :
 
             # ^ nouvelles commandes ici ^
 
-            #elif len(msg) > 2 and msg[0] == p : await client.send_message(message.channel, 'À tes souhaits ' + message.author.mention + ' !')
+            elif len(msg) > 2 and msg[0] == p : await client.add_reaction(message, u"\N{UPSIDE-DOWN FACE}")
                 
         except Exception :
             txt = time.strftime('[%d/%m/%Y %H:%M:%S]\n')
