@@ -58,6 +58,7 @@ commandes = {"ascii":      ["<texte>",                                       "Je
              "loc":        ["",                                              "Lines Of Code, je te dis combien de lignes comporte actuellement mon programme Python."],
              "love":       ["<@user1> <@user2>",                             "Je calcule le pourcentage d'amour entre les deux personnes."],
              "mute":       ["<@utilisateur> <temps><s|m|h|j> <motif>",       "**uniquement pour les modérateurs**\nPour mute temporairement quelqu'un."],
+             "p4":         ["[v2]",                                          "Un super jeu de Puissance4 ! L'argument `v2` sert à jouer à la version moderne où l'on peut éjecter un pion de la dernière ligne au lieu de jouer. Tout le reste est expliqué !"],
              "ping":       ["",                                              "Je te donne le temps qui s'écoule entre le moment où tu postes ton message et celui où je le reçois."],
              "proverbe":   ["[add <Votre proverbe.>]",                       "Je te donne un proverbe au hasard parmis ceux que je connais ou alors tu m'en apprends un nouveau."],
              "qr":         ["<du blabla>",                                   "Je te fabrique un joli QR code avec ton texte de stocké dessus."],
@@ -130,6 +131,36 @@ def usage(p, commande, mini=False):
     if not mini : txt += " (`" + p + "help " + commandeAff + "` pour plus de détails)."
     return txt
 
+def p4Affichage(grille):
+    reponse = ""
+    for i in range(7): reponse += str(i+1)+"\N{COMBINING ENCLOSING KEYCAP}"
+    reponse += "\n"
+    for line in grille:
+        for i in line:
+            if i == "J" : reponse += str(discord.utils.get(client.get_all_emojis(), name="p4jaune"))
+            elif i == "R" : reponse += str(discord.utils.get(client.get_all_emojis(), name="p4rouge"))
+            else : reponse += "\N{MEDIUM BLACK CIRCLE}"
+        reponse += "\n"
+    return reponse
+
+def p4Winner(grille):
+    for y in range(6):
+        for x in range(7):
+            if y+3 <= 5 and grille[y][x] == grille[y+1][x] == grille[y+2][x] == grille[y+3][x] != "" : return grille[y][x]
+            if x+3 <= 6 and grille[y][x] == grille[y][x+1] == grille[y][x+2] == grille[y][x+3] != "" : return grille[y][x]
+            if y+3 <= 5 and x+3 <= 6 and grille[y][x] == grille[y+1][x+1] == grille[y+2][x+2] == grille[y+3][x+3] != "" : return grille[y][x]
+            if x+3 <= 6 and y-3 >= 0 and grille[y][x] == grille[y-1][x+1] == grille[y-2][x+2] == grille[y-3][x+3] != "" : return grille[y][x]
+
+    return None
+
+def flatten(grille):
+    reponse = []
+    for line in grille:
+        for i in line : reponse.append(i)
+    return reponse
+
+
+
 with open("wordlist/courants.txt", "r") as f : mots = f.read().split("\n")
 with open("secret.json", "r") as f : secret = json.loads(f.read())
 with open("pokemons-trad.json", "r") as f : pokeTrad = json.loads(f.read())
@@ -164,17 +195,33 @@ try :
             with open("log/erreurs.txt","a") as f : f.write(txt)
 
     @client.event
+    async def on_server_join(server):
+        await client.send_message(ribt, "J'ai été invité sur le serv **"+server.name+"** (de **"+server.owner.name+"**) !")
+        with open("config.json", "r") as f : config = json.loads(f.read())
+        for server in client.servers :
+            if server.id in config :
+                for param in defaultConfig :
+                    if not param in config[server.id] : config[server.id][param] = defaultConfig[param]
+                oldConfig = config[server.id].copy()
+                for param in oldConfig:
+                    if not param in defaultConfig : del config[server.id][param]
+            else :
+                config[server.id] = defaultConfig
+        with open("config.json", "w") as f : f.write(json.dumps(config, indent=4))
+
+
+    @client.event
     async def on_member_join(member):
         with open("config.json", "r") as f : config = json.loads(f.read())[member.server.id]
         if config["welcomeMP"] :
             await client.send_message(member, config["welcomeMP"])
-        channel = discord.utils.get(message.server.channels, id=config["welcomeChannel"])
+        channel = discord.utils.get(member.server.channels, id=config["welcomeChannel"])
         if channel : await client.send_message(channel, "Bienvenue à toi " + member.mention + " \N{WAVING HAND SIGN}")
 
     @client.event
     async def on_member_remove(member):
         with open("config.json", "r") as f : config = json.loads(f.read())[member.server.id]
-        channel = discord.utils.get(message.server.channels, id=config["goodbyeChannel"])
+        channel = discord.utils.get(member.server.channels, id=config["goodbyeChannel"])
         if channel : await client.send_message(channel, "Au revoir **" + member.name + "** \N{WAVING HAND SIGN}")
 
     @client.event
@@ -1021,7 +1068,7 @@ try :
                         nchars = len(arg)
                         n = 0
                         for i in range(nchars) : n += ord(arg[i]) << 8*(nchars-i-1)
-                except ValueError : await client.send_message("Une erreur s'est produite...")
+                except ValueError : await client.send_message(message.channel, "Une erreur s'est produite, vérifiez vos arguments...")
                 b = str(bin(n))[2:]
 
                 em = discord.Embed(title="Convertisseur de base", colour=0x00ff00)
@@ -1197,7 +1244,10 @@ try :
                     elif args[0] == "show" :
                         if len(args) != 2 : await client.send_message(message.channel, "Usage : `"+p+"config show <paramètre>`.")
                         else :
-                            if args[1] in config : await client.send_message(message.channel, args[1]+" = "+str(config[args[1]]))
+                            if args[1] in config :
+                                if configInfos[args[1]][0] == "role" and config[args[1]] : await client.send_message(message.channel, args[1]+" = "+discord.utils.get(message.server.roles, id=config[args[1]]).mention)
+                                elif configInfos[args[1]][0] == "channel" and config[args[1]] : await client.send_message(message.channel, args[1]+" = "+discord.utils.get(message.server.channels, id=config[args[1]]).mention)
+                                else : await client.send_message(message.channel, args[1]+" = "+str(config[args[1]]))
                             else : client.send_message(message.channel, "Je n'ai pas ce paramètre dans ma liste.")
 
                     elif args[0] == "reset" :
@@ -1214,6 +1264,8 @@ try :
                                     with open("config.json", "r") as f : config = json.loads(f.read())
                                     config[message.server.id][args[1]] = defaultConfig[args[1]]
                                     with open("config.json", "w") as f : f.write(json.dumps(config, indent=4))
+                                    await client.add_reaction(message, "\N{WHITE HEAVY CHECK MARK}")
+                                await client.delete_message(demande)
                             else : client.send_message(message.channel, "Je n'ai pas ce paramètre dans ma liste.")
 
                     elif args[0] == "set" :
@@ -1278,6 +1330,102 @@ try :
                 em = discord.Embed(title="les_joies_du_code();", description=commentaire, colour=0x00ff00)
                 em.set_image(url=fileUrl)
                 await client.send_message(message.channel, embed=em)
+
+            elif cmd == "p4":
+                if len(args) == 1 and args[0] == "v2" : v2 = True
+                else : v2 = False
+                jetonJaune = str(discord.utils.get(client.get_all_emojis(), name="p4jaune"))
+                jetonRouge = str(discord.utils.get(client.get_all_emojis(), name="p4rouge"))
+                numbers = [str(i+1)+"\N{COMBINING ENCLOSING KEYCAP}" for i in range(7)]
+                interface = await client.send_message(message.channel, "Qui veut jouer avec "+message.author.mention+" clique sur la réaction \N{HAPPY PERSON RAISING ONE HAND} !")
+                await client.add_reaction(interface, "\N{HAPPY PERSON RAISING ONE HAND}")
+                res = await client.wait_for_reaction("\N{HAPPY PERSON RAISING ONE HAND}", timeout=60, message=interface)
+                while res != None and res.user == client.user : res = await client.wait_for_reaction("\N{HAPPY PERSON RAISING ONE HAND}", timeout=60, message=interface)
+                await client.clear_reactions(interface)
+                if res == None :
+                    await client.edit_message(interface, "Personne veut jouer avec toi "+message.author.mention+" \N{DISAPPOINTED BUT RELIEVED FACE}")
+                    return
+                joueurs = [res.user, message.author]
+                grille = [['', '', '', '', '', '', ''], ['', '', '', '', '', '', ''], ['', '', '', '', '', '', ''], ['', '', '', '', '', '', ''], ['', '', '', '', '', '', ''], ['', '', '', '', '', '', '']]
+                joueur = joueurs[0]
+                couleur = "J"
+                txt = "Voici les règles du jeu :\n- Vous jouez chacun votre tour en posant un jeton dans une colonne.\n- Le gagnant est celui qui aligne 4 jetons de sa couleur verticalement, horizontalement ou en diagonale.\n- Vous choisissez la colonne où vous jouez avec les réactions numéros."
+                if v2 : txt += "\n- Vous pouvez utiliser la récation \N{FISTED HAND SIGN} pour éjecter le jeton le plus bas d'une colonne au lieu d'en poser un nouveau."
+                txt += "\n\nLe jeux commencera quand les deux joueurs auront réagis avec \N{WHITE HEAVY CHECK MARK}.\nBon jeu !"
+                await client.edit_message(interface, txt)
+                await client.add_reaction(interface, "\N{WHITE HEAVY CHECK MARK}")  
+                agreed = []
+                while not (joueurs[0] in agreed and joueurs[1] in agreed) :
+                    res = await client.wait_for_reaction("\N{WHITE HEAVY CHECK MARK}", timeout=120, message=interface)
+                    if res == None :
+                        await client.edit_message(interface, "Bon bah la partie est annulée si personne n'accepte les règles \N{CONFUSED FACE}")
+                        return
+                    agreed.append(res.user)
+                await client.edit_message(interface, "Chargement en cours...")
+                await client.clear_reactions(interface)
+                if v2 : await client.add_reaction(interface, "\N{FISTED HAND SIGN}")
+                for n in numbers : await client.add_reaction(interface, n)
+                warn = ""
+                while not p4Winner(grille) and "" in flatten(grille) :
+                    txt = "À toi de jouer "+joueur.mention
+                    if couleur == "J" : txt += " (jeton "+jetonJaune+")"
+                    else : txt += "(jeton "+jetonRouge+")"
+                    txt += "\n\n"+p4Affichage(grille)
+                    if warn != "" : txt += "\n"+warn
+                    await client.edit_message(interface, txt)
+                    warn = ""
+                    if v2 : res = await client.wait_for_reaction(numbers+["\N{FISTED HAND SIGN}"], user=joueur, timeout=120, message=interface)
+                    else : res = await client.wait_for_reaction(numbers, user=joueur, timeout=120, message=interface)
+                    if res == None : break
+                    else :
+                        removeReac = False
+                        try :
+                            await client.remove_reaction(interface, res.reaction.emoji, res.user)
+                            removeReac = True
+                        except discord.errors.Forbidden :
+                            removeReac = False
+                            await client.send_message(message.channel, "Je n'ai pas le droit de supprimer vos réactions il va donc falloir que vous enleviez et remettez vos réactions à chaque tour (et puis c'est de la faute de celui qui fait les perms de ce serv, pas la mienne).")
+                        if str(res.reaction.emoji) == "\N{FISTED HAND SIGN}" and v2 :
+                            await client.edit_message(interface, txt+"\n Utilise les numéros pour choisir la colonne où tu veux éjecter un pion.")
+                            res = await client.wait_for_reaction(numbers, user=joueur, timeout=60, message=interface)
+                            if res == None : break
+                            else :
+                                if removeReac : await client.remove_reaction(interface, res.reaction.emoji, res.user)
+                                n = numbers.index(str(res.reaction.emoji))
+                                if grille[5][n] == "" : warn = "Cette colonne est vide \N{SMILING FACE WITH OPEN MOUTH AND COLD SWEAT} (reclique sur \N{FISTED HAND SIGN} si tu veux toujours éjecter un pion)"
+                                else :
+                                    for y in reversed(range(1,6)):
+                                        grille[y][n] = grille[y-1][n]
+                                        if couleur == "J" :
+                                            couleur = "R"
+                                            joueur = joueurs[1]
+                                        else :
+                                            couleur = "J"
+                                            joueur = joueurs[0]
+                        else :
+                            n = numbers.index(str(res.reaction.emoji))
+                            if grille[0][n] != "" : warn =  "C'est plus pratique de mettre un pion dans une colonne où il reste de la place..."
+                            else :
+                                y = 0
+                                while y < len(grille) and grille[y][n] == "" : y += 1
+                                grille[y-1][n] = couleur
+                                if couleur == "J" :
+                                    couleur = "R"
+                                    joueur = joueurs[1]
+                                else :
+                                    couleur = "J"
+                                    joueur = joueurs[0]
+                await client.delete_message(interface)
+                await client.send_message(message.channel, p4Affichage(grille))
+                if p4Winner(grille) == "J" : await client.send_message(message.channel, "Bravo "+joueurs[0].mention+" tu as battu "+joueurs[1].mention+" !")
+                elif p4Winner(grille) == "R" : await client.send_message(message.channel, "Bravo "+joueurs[1].mention+" tu as battu "+joueurs[0].mention+" !")
+                elif "" in flatten(grille) : await client.send_message(message.channel, "Personne m'a répondu pendant 2 minutes alors j'ai annulé la partie \N{CONFUSED FACE}")
+                else : await client.send_message(message.channel, "Grille complète et match nul...")
+
+            elif cmd == "invite" : await client.send_message(message.channel, "Invitez moi sur votre serveur : https://discordapp.com/oauth2/authorize?client_id=380775694411497493&scope=bot&permissions=271969344\net visitez mon serveur principal : https://discord.gg/MwMpRha")
+
+
+
 
 
 
