@@ -24,8 +24,9 @@ from unidecode import unidecode
 from math import ceil
 from PIL import Image
 from bs4 import BeautifulSoup
+import io
 from constantes import fast, aide_fast, caracteres, feeds, pendu, ytCategories
-from fonctions import joliStr, getUrl
+from fonctions import joliStr, getUrl, int_to_bytes
 
 commandes = {"ascii":      ["<texte>",                                       "Je te convertis ton texte (ASCII) en d'autres bases."],
              "avatar":     ["[@quelqu'un]",                                  "Je t'envois ta photo de profil (ou celle de l'utilisateur mentionné) convertie en PNG spécialemnt pour toi !"],
@@ -46,6 +47,7 @@ commandes = {"ascii":      ["<texte>",                                       "Je
              "emoticon":   ["",                                              "Je t'envoies un des 4404 jolis emoticons que je connais."],
              "ext":        ["<extension>",                                   "Je t'envois plein d'infos croustillantes sur une extension de nom de domaine (`.fr`, `.com`...) totalement pompées sur https://www.gandi.net/."],
              "fast":       ["<niveau>",                                      aide_fast],
+             "findinpi":   ["<nombre ou texte>",                             "Je cherche ton nombre dans les 1 000 000 000 premières décimales du nombre pi (et si tu m'envoies du texte je le convertis)."],
              "friend":     ["<@user1> <@user2>",                             "Je calcule le pourcentage d'amitié entre les deux personnes."],
              "gif":        ["[<termes à rechercher>]",                       "Je vais te chercher un GIF sur https://giphy.com/ (une recherche vide donne un GIF aléatoire)."],
              "gps":        ["<latitude,longitude>",                          "Je te donne les trois mots what3words et l'adresse postale correspondants aux coordonnées GPS."],
@@ -53,12 +55,14 @@ commandes = {"ascii":      ["<texte>",                                       "Je
              "help":       ["[<commande>]",                                  "Je te donne la liste des commandes disponibles ou toutes les infos sur une commande."],
              "heure":      ["",                                              "l'heure qu'il est, tout simplement ^^"],
              "hex":        ["<hexadécimal>",                                 "Je te convertis ton nombre (en hexadécimal) en d'autres bases."],
+             "invite":     ["",                                              "Je t'envoies le lien pour m'inviter sur ton serveur ainsi qu'une invitation pour rejoindre mon serveur principal."],
              "ljdc":       ["",                                              "Les Joies Du Code, un super GIF piqué sur https://lesjoiesducode.fr/"],
              "lmgtfy":     ["<termes à rechercher>",                         "Let Me Google That For You, je fais une recherche sur Internet pour toi (avec Qwant bien entendu)."],
              "loc":        ["",                                              "Lines Of Code, je te dis combien de lignes comporte actuellement mon programme Python."],
              "love":       ["<@user1> <@user2>",                             "Je calcule le pourcentage d'amour entre les deux personnes."],
              "mute":       ["<@utilisateur> <temps><s|m|h|j> <motif>",       "**uniquement pour les modérateurs**\nPour mute temporairement quelqu'un."],
              "p4":         ["[v2]",                                          "Un super jeu de Puissance4 ! L'argument `v2` sert à jouer à la version moderne où l'on peut éjecter un pion de la dernière ligne au lieu de jouer. Tout le reste est expliqué !"],
+             "pi2image":   ["<largeur> <hauteur> [<début>]",                 "Je fabrique une image à partir du nombre pi. `largeur` désigne la largeur de l'image en pixels, `hauteur` pour sa hauteur et `début` représente le rang le la première décimale à utiliser."],
              "ping":       ["",                                              "Je te donne le temps qui s'écoule entre le moment où tu postes ton message et celui où je le reçois."],
              "proverbe":   ["[add <Votre proverbe.>]",                       "Je te donne un proverbe au hasard parmis ceux que je connais ou alors tu m'en apprends un nouveau."],
              "qr":         ["<du blabla>",                                   "Je te fabrique un joli QR code avec ton texte de stocké dessus."],
@@ -83,14 +87,16 @@ commandes = {"ascii":      ["<texte>",                                       "Je
              "youtube":    ["<nom de la vidéo/chaîne>",                      "Je te montre plein d'infos sur cette vidéo/chaîne."]
              }
 
-alias = {"devine":  ["+ou-"],
-         "dis":     ["parle"],
-         "help":    ["aide"],
-         "lmgtfy":  ["lmqtfy", "qwant"],
-         "urban":   ["ud"],
-         "user":    ["profile"],
-         "weather": ["meteo"],
-         "youtube": ["ytb", "yt"]
+alias = {"devine":    ["+ou-"],
+         "dis":       ["parle"],
+         "findinpi":  ["fip"],
+         "help":      ["aide"],
+         "lmgtfy":    ["lmqtfy", "qwant"],
+         "pi2image":  ["pi2img", "p2i"],
+         "urban":     ["ud"],
+         "user":      ["profile"],
+         "weather":   ["meteo"],
+         "youtube":   ["ytb", "yt"]
          }
 
 configInfos = {"prefix":             ["text", "Le préfixe pour utiliser une des mes commandes."],
@@ -871,6 +877,10 @@ try :
                 else : await client.send_message(message.channel, usage(p, cmd))
 
             elif cmd == "life": await client.send_file(message.channel, "life.gif")
+
+            elif cmd == "obvious": await client.send_file(message.channel, "obvious.gif")
+
+            elif cmd == "ah": await client.send_file(message.channel, "ah.gif")
             
             elif cmd == "gratuit": await client.send_file(message.channel, "gratuit.png")
 
@@ -1068,7 +1078,9 @@ try :
                         nchars = len(arg)
                         n = 0
                         for i in range(nchars) : n += ord(arg[i]) << 8*(nchars-i-1)
-                except ValueError : await client.send_message(message.channel, "Une erreur s'est produite, vérifiez vos arguments...")
+                except ValueError :
+                    await client.send_message(message.channel, "Une erreur s'est produite, vérifiez vos arguments...")
+                    return
                 b = str(bin(n))[2:]
 
                 em = discord.Embed(title="Convertisseur de base", colour=0x00ff00)
@@ -1424,7 +1436,121 @@ try :
 
             elif cmd == "invite" : await client.send_message(message.channel, "Invitez moi sur votre serveur : https://discordapp.com/oauth2/authorize?client_id=380775694411497493&scope=bot&permissions=271969344\net visitez mon serveur principal : https://discord.gg/MwMpRha")
 
+            elif cmd == "findinpi" or cmd in alias["findinpi"] :
+                if len(arg) == 0 : await client.send_message(message.channel, usage(p, cmd))
+                else : 
+                    try :
+                        n = int(arg)
+                        n = arg
+                    except ValueError :
+                        nchars = len(arg)
+                        n = 0
+                        for i in range(nchars) : n += ord(arg[i]) << 8*(nchars-i-1)
+                        n = str(n)
+                        await client.send_message(message.channel, "Ton argument ressemblant d'avantage à un texte qu'à un nombre je me suis permis de le convertir en utilisant la table ASCII.")
 
+                    loader = await client.send_message(message.channel, "Chargement en cours...")
+                    myStream = io.open('pi-billion.txt', "r", encoding="utf-8")
+                    oldEndMatch = ""
+                    lastTest = ""
+                    curseur = 0
+                    positionA = -1
+                    bufferring = 2000000
+                    piSize = 1000000000
+                    for i in range(piSize//bufferring) :
+                        if (curseur+bufferring)%(piSize//5) == 0 : await client.edit_message(loader, "Recherche dans les "+joliStr(curseur+bufferring)+" premières décimales de pi.")
+                        myStream.seek(curseur+2)
+                        test = myStream.read(bufferring)
+                        if test.startswith(n[len(oldEndMatch):]) :
+                            positionA = curseur - len(oldEndMatch)
+                            pattern = lastTest[bufferring-len(oldEndMatch)-10:bufferring-len(oldEndMatch)]+"__"+n+"__"+test[len(n)-len(oldEndMatch):len(n)-len(oldEndMatch)+10]
+                            break
+                        elif test.find(n) != -1 :
+                            positionA = test.find(n)+curseur
+                            positionR = test.find(n)
+                            if positionR < 10 :
+                                pattern = lastTest[positionR-10:]+test[:positionR]+"__"+n+"__"+test[positionR+len(n):positionR+len(n)+10]
+                            elif positionR+len(n)+10 > bufferring :
+                                if curseur == piSize : pattern = test[positionR-10:positionR]+"__"+n+"__"+test[positionR+len(n):]
+                                else :
+                                    myStream.seek(curseur+bufferring+2)
+                                    nextTest = myStream.read(bufferring)
+                                    pattern = test[positionR-10:positionR]+"__"+n+"__"+test[positionR+len(n):]+nextTest[(positionR+len(n)+10)%bufferring:]
+                            else :
+                                pattern = test[positionR-10:positionR]+"__"+n+"__"+test[positionR+len(n):positionR+len(n)+10]
+                            break
+                        oldEndMatch = ""
+                        for i in range(len(n)) :
+                            if test.endswith(n[:i]) : oldEndMatch = n[:i]
+                        curseur += bufferring
+                        lastTest = test
+
+                    await client.delete_message(loader)
+                    if positionA == -1 :
+                        try : await client.send_message(message.channel, n+" n'a pas été trouvé dans les 1 000 000 000 premières décimales de pi.")
+                        except discord.errors.HTTPException : await client.send_message(message.channel, "Je n'ai pas trouvé ton nombre mais je ne vais pas pouvoir l'afficher car il est un peu trop long...")
+                    elif positionA == 0 : await client.send_message(message.channel, "C'est ainsi que commence le nombre pi ^^")
+                    else :
+                        try : await client.send_message(message.channel, n+" a été trouvé à la "+joliStr(positionA+1)+" ème décimale de pi ("+pattern+").")
+                        except discord.errors.HTTPException : await client.send_message(message.channel, "Ton nombre a bien été trouvé à la "+joliStr(positionA+1)+" ème décimales de pi mais il est trop long pour que je l'affiche.")
+
+            elif cmd == "pi2image" or cmd in alias["pi2image"] :
+                try : 
+                    if len(args) == 2 :
+                        width = int(args[0])
+                        height = int(args[1])
+                        begining = 0
+                    elif len(args) == 3 :
+                        width = int(args[0])
+                        height = int(args[1])
+                        begining = int(args[2])
+                    else :
+                        raise ValueError
+                except ValueError :
+                    await client.send_message(message.channel, usage(p, cmd))
+                    return
+                if width*height > 2073600 :
+                    await client.send_message(message.channel, "Pour éviter de me faire calculer pendant des heures, l'image est limitée à 2 073 600 pixels (la taille d'un écran d'ordinateur classique).")
+                    return
+                elif width*height <= 0 :
+                    await client.send_message(message.channel, "Ouais alors la taille doit quand même être supéreure à zéro \N{SMILING FACE WITH OPEN MOUTH AND COLD SWEAT}")
+                    return
+                elif min(width, height) < 10 :
+                    await client.send_message(message.channel, "La largeur et la hauteur doivent être supérieures à 10 pixels.")
+                    return
+                elif begining < 0 :
+                    await client.send_message(message.channel, "Arrête d'essayer de me faire crasher t'es méchant \N{TIRED FACE}")
+                    return
+
+                await client.add_reaction(message, "\N{TIMER CLOCK}")
+                myStream = io.open('pi-billion.txt', "r", encoding="utf-8")
+
+                try : myStream.seek(begining+2)
+                except OSError :
+                    await client.send_message(message.channel, "Je ne connais *que* le premier miliard de décimales de pi.")
+                    return                    
+
+                decimals = myStream.read(width*height*3)
+
+                pimg =  open ("pi.ppm", 'wb')
+                pimg.write(bytes("P6\n"+str(width)+" "+str(height)+" 9\n", 'ascii'))
+                for i in decimals :
+                    pimg.write(bytes([int(i)*255//9]))
+                if len(decimals) < width*height*3 :
+                    await client.send_message(message.channel, "Je ne connais *que* le premier miliard de décimales de pi alors je complètes avec des pixels noirs.")
+                    for _ in range(width*height*3 - len(decimals)) :
+                        pimg.write(bytes([0]))
+                del decimals
+                pimg.close()
+
+                im = Image.open("pi.ppm")
+                im.save("pi.png")
+                im.close()
+
+                if begining == 0 : txt = "première"
+                else : txt = joliStr(begining)+" ème"
+                await client.send_file(message.channel, "pi.png", content="Voici une image de "+str(width)+"x"+str(height)+" avec les décimales de pi de la "+txt+" à la "+joliStr(begining + width*height*3)+" ème.")
+                await client.remove_reaction(message, "\N{TIMER CLOCK}", client.user)
 
 
 

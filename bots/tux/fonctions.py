@@ -58,3 +58,6 @@ async def actu():
             for i in rss['entries'] :
                 if timegm(i['published_parsed']) > dernier :
                     await client.send_message(channel, i['link'])
+
+def int_to_bytes(x):
+    return list(x.to_bytes((x.bit_length() + 7) // 8, 'big'))
