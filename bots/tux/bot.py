@@ -22,11 +22,11 @@ from base64 import *
 import qrcode
 from unidecode import unidecode
 from math import ceil
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
 from bs4 import BeautifulSoup
 import io
 from constantes import fast, aide_fast, caracteres, feeds, pendu, ytCategories
-from fonctions import joliStr, getUrl, int_to_bytes
+from fonctions import joliStr, getUrl, p4Affichage, p4Winner, flatten
 
 commandes = {"ascii":      ["<texte>",                                       "Je te convertis ton texte (ASCII) en d'autres bases."],
              "avatar":     ["[@quelqu'un]",                                  "Je t'envois ta photo de profil (ou celle de l'utilisateur mentionné) convertie en PNG spécialemnt pour toi !"],
@@ -109,7 +109,8 @@ configInfos = {"prefix":             ["text", "Le préfixe pour utiliser une des
                "managedRolesColor":  ["color", "Si configuré, ce paramètre permet à tous les membres d'utiliser la commande `role` pour s'ajouter eux-même les rôles ayant cette couleur."],
                "suggestionsChannel": ["channel", "Le salon où les membres peuvent proposer des améliorations pour le serveur."],
                "welcomeChannel":     ["channel", "Si configuré, je poste un message de bienvenue dans le salon correspondant à chaque nouvel arrivant."],
-               "goodbyeChannel":     ["channel", "Si configuré, je poste un message de au revoir dans le salon correspondant à chaque membre qui nous quitte."]
+               "goodbyeChannel":     ["channel", "Si configuré, je poste un message de au revoir dans le salon correspondant à chaque membre qui nous quitte."],
+               "actuChannel":        ["channel", "Si configuré, je poste les dernières actus dans ce chan toutes les 10 minutes. Mes admins peuvent configurer les actus à afficher avec la commande `rss`."]
                }
 
 defaultConfig = {"prefix": "!",
@@ -122,7 +123,8 @@ defaultConfig = {"prefix": "!",
                  "managedRolesColor": None,
                  "suggestionsChannel": None,
                  "welcomeChannel": None,
-                 "goodbyeChannel": None
+                 "goodbyeChannel": None,
+                 "actuChannel": None
                  }
 
 def usage(p, commande, mini=False):
@@ -137,33 +139,21 @@ def usage(p, commande, mini=False):
     if not mini : txt += " (`" + p + "help " + commandeAff + "` pour plus de détails)."
     return txt
 
-def p4Affichage(grille):
-    reponse = ""
-    for i in range(7): reponse += str(i+1)+"\N{COMBINING ENCLOSING KEYCAP}"
-    reponse += "\n"
-    for line in grille:
-        for i in line:
-            if i == "J" : reponse += str(discord.utils.get(client.get_all_emojis(), name="p4jaune"))
-            elif i == "R" : reponse += str(discord.utils.get(client.get_all_emojis(), name="p4rouge"))
-            else : reponse += "\N{MEDIUM BLACK CIRCLE}"
-        reponse += "\n"
-    return reponse
-
-def p4Winner(grille):
-    for y in range(6):
-        for x in range(7):
-            if y+3 <= 5 and grille[y][x] == grille[y+1][x] == grille[y+2][x] == grille[y+3][x] != "" : return grille[y][x]
-            if x+3 <= 6 and grille[y][x] == grille[y][x+1] == grille[y][x+2] == grille[y][x+3] != "" : return grille[y][x]
-            if y+3 <= 5 and x+3 <= 6 and grille[y][x] == grille[y+1][x+1] == grille[y+2][x+2] == grille[y+3][x+3] != "" : return grille[y][x]
-            if x+3 <= 6 and y-3 >= 0 and grille[y][x] == grille[y-1][x+1] == grille[y-2][x+2] == grille[y-3][x+3] != "" : return grille[y][x]
-
-    return None
-
-def flatten(grille):
-    reponse = []
-    for line in grille:
-        for i in line : reponse.append(i)
-    return reponse
+async def actu(client):
+    await client.wait_until_ready()
+    channel = discord.Object(id='404375736254988288')
+    while not client.is_closed:
+        dernier = time.time()
+        while time.time() < dernier+600 : await asyncio.sleep(10) # 10 minutes
+        with open("config.json", "r") as f : config = json.loads(f.read())
+        for server in client.servers :
+            channel = discord.Object(id=config[server.id]["actuChannel"])
+            if channel and "feeds" in config[server.id] and len(config[server.id]["feeds"]) > 0 :
+                for feed in config[server.id]["feeds"] :
+                    rss = feedparser.parse(feed)
+                    for i in rss['entries'] :
+                        if timegm(i['updated_parsed']) > dernier :
+                            await client.send_message(channel, i['link'])
 
 
 
@@ -190,8 +180,6 @@ try :
                     for param in defaultConfig :
                         if not param in config[server.id] : config[server.id][param] = defaultConfig[param]
                     oldConfig = config[server.id].copy()
-                    for param in oldConfig:
-                        if not param in defaultConfig : del config[server.id][param]
                 else :
                     config[server.id] = defaultConfig
             with open("config.json", "w") as f : f.write(json.dumps(config, indent=4))
@@ -305,9 +293,11 @@ try :
                         try : await client.send_message(message.author, "Il te reste encore " + str(round(mute[serv][message.author.id]['expires'] - time.time())) + " secondes pour réfléchir à ce que tu as fait.")
                         except discord.errors.Forbidden : pass
                         return
-            if muteRole in message.author.roles :
-                try : await client.remove_roles(message.author, muteRole)
-                except discord.errors.Forbidden : await client.send_message(message.channel, "Je n'ai pas le droit de t'enlever le rôle "+muteRole.mention+" \N{SMILING FACE WITH OPEN MOUTH AND COLD SWEAT}")
+            try : 
+                if muteRole in message.author.roles :
+                    try : await client.remove_roles(message.author, muteRole)
+                    except discord.errors.Forbidden : await client.send_message(message.channel, "Je n'ai pas le droit de t'enlever le rôle "+muteRole.mention+" \N{SMILING FACE WITH OPEN MOUTH AND COLD SWEAT}")
+            except AttributeError : pass
 
             if random.randint(0, 99) < humour :
                 if re.match(r"(?i)^ah?\W*$", msg) : await client.send_message(message.channel, 'tchoum')
@@ -413,7 +403,8 @@ try :
 
 
             elif cmd == 'date':
-                await client.send_message(message.channel, time.strftime('Nous sommes le %d/%m/%Y.', time.localtime()))
+                jour = time.strftime("%A").replace("Monday","lundi").replace("Tuesday","mardi").replace("Thursday","jeudi").replace("Friday","vendredi").replace("Saturday","samedi").replace("Sunday","dimanche").replace("","")
+                await client.send_message(message.channel, "Nous sommes "+jour+ time.strftime(' %d/%m/%Y.', time.localtime()))
 
             elif cmd == 'blague':
                 with open("blagues.txt", "r") as f : c = f.read().split('\n')
@@ -815,11 +806,20 @@ try :
                         await client.send_message(message.channel, txt)
 
             elif cmd == "chr" :
-                if len(args) != 1 or len(args[0]) != 1 : await client.send_message(message.channel, usage(p, cmd))
-                else :
+                if len(arg) < 1 : await client.send_message(message.channel, usage(p, cmd))
+                elif len(arg) == 1 :
                     c = arg
-                    try : await client.send_message(message.channel, "Le caractère `" + c + "` répond au doux nom de **" + unicodedata.name(c) + "** et son code Unicode est **" + str(ord(c)) + "**.")
+                    try : await client.send_message(message.channel, "Le caractère `" + c + "` répond au doux nom de **" + unicodedata.name(c) + "** et son code utf-8 est **" + str(ord(c)) + "**.")
                     except : await client.send_message(message.channel, "Une erreur s'est produite...")
+                else :
+                    txt = "Tu m'as envoyé "+str(len(arg))+" caractères au lieu d'un seul :"
+                    for c in arg.replace(" ", "") :
+                        txt += "\n- `"+c+"` : "
+                        try : nom = unicodedata.name(c)
+                        except : nom = "nom inconnu"
+                        txt += nom+", "+str(ord(c))
+                    await client.send_message(message.channel, txt)
+
 
             elif cmd == "unicode" :
                 if len(args) != 1 : await client.send_message(message.channel, usage(p, cmd))
@@ -1205,7 +1205,7 @@ try :
                     return
                 if len(args) == 0 :
                     page = -1
-                    liste = sorted(config.keys())
+                    liste = sorted(defaultConfig.keys())
                     boucle = True
                     embed = discord.Embed(title="\N{HAMMER AND WRENCH} Configuration de ma personne", description="Je suis un super bot donc je suis configurable. Pour cela mon super dev a fait une commande `config` qui s'utilise comme cela : `"+p+"config [list|show|reset|set] [paramètre] [valeur]`. La commande `list` fait une simple liste de toutes les options configurables puis `show` permet d'en connaître la valeur actuelle, `reset` remet l'option à sa valeur par défaut et `set` sert à la modifier à ta guise. Mais comme tout ceci est un peu barbant, si la commande `config` est appelée seule c'est ce joli menu interactif qui apparaît pour bien voir et comprendre mes différentes options. Il suffit de naviguer avec les flèches ci-dessous.", color=0x00ff00)
                     interface = await client.send_message(message.channel, embed=embed)
@@ -1249,7 +1249,7 @@ try :
                 else :
                     if args[0] == "list" :
                         txt = "Voici la liste de mes options configurables (cela peut évoluer avec le temps) :\n"
-                        for param in sorted(config.keys()) :
+                        for param in sorted(defaultConfig.keys()) :
                             txt += "\n- `"+param+"`"
                         await client.send_message(message.channel, txt)
 
@@ -1352,7 +1352,7 @@ try :
                 interface = await client.send_message(message.channel, "Qui veut jouer avec "+message.author.mention+" clique sur la réaction \N{HAPPY PERSON RAISING ONE HAND} !")
                 await client.add_reaction(interface, "\N{HAPPY PERSON RAISING ONE HAND}")
                 res = await client.wait_for_reaction("\N{HAPPY PERSON RAISING ONE HAND}", timeout=60, message=interface)
-                while res != None and res.user == client.user : res = await client.wait_for_reaction("\N{HAPPY PERSON RAISING ONE HAND}", timeout=60, message=interface)
+                while res != None and (res.user == client.user or res.user == message.author) : res = await client.wait_for_reaction("\N{HAPPY PERSON RAISING ONE HAND}", timeout=60, message=interface)
                 await client.clear_reactions(interface)
                 if res == None :
                     await client.edit_message(interface, "Personne veut jouer avec toi "+message.author.mention+" \N{DISAPPOINTED BUT RELIEVED FACE}")
@@ -1503,7 +1503,7 @@ try :
                     elif len(args) == 3 :
                         width = int(args[0])
                         height = int(args[1])
-                        begining = int(args[2])
+                        begining = int(args[2])-1
                     else :
                         raise ValueError
                 except ValueError :
@@ -1537,7 +1537,7 @@ try :
                 for i in decimals :
                     pimg.write(bytes([int(i)*255//9]))
                 if len(decimals) < width*height*3 :
-                    await client.send_message(message.channel, "Je ne connais *que* le premier miliard de décimales de pi alors je complètes avec des pixels noirs.")
+                    await client.send_message(message.channel, "Je ne connais *que* le premier miliard de décimales de pi alors je complète avec des pixels noirs.")
                     for _ in range(width*height*3 - len(decimals)) :
                         pimg.write(bytes([0]))
                 del decimals
@@ -1548,9 +1548,120 @@ try :
                 im.close()
 
                 if begining == 0 : txt = "première"
-                else : txt = joliStr(begining)+" ème"
-                await client.send_file(message.channel, "pi.png", content="Voici une image de "+str(width)+"x"+str(height)+" avec les décimales de pi de la "+txt+" à la "+joliStr(begining + width*height*3)+" ème.")
+                else : txt = joliStr(begining+1)+" ème"
+                await client.send_file(message.channel, "pi.png", content="Voici une image de "+str(width)+"x"+str(height)+" avec les décimales de pi de la "+txt+" à la "+joliStr(begining + width*height*3+1)+" ème.")
                 await client.remove_reaction(message, "\N{TIMER CLOCK}", client.user)
+
+            elif cmd == "rss" :
+                if not admin in message.author.roles :
+                    await client.send_message(message.channel, "Cette commande est réservée à mes administrateurs.")
+                    return
+                if len(args) == 1 and args[0] == "list" :
+                    if "feeds" in config :
+                        txt = "Voici la liste des feeds déjà configurés :"
+                        for feed in config["feeds"] :
+                            txt += "\n- <"+feed+">"
+                        await client.send_message(message.channel, txt)
+                    else : await client.send_message(message.channel, "Aucun flux RSS n'est configuré mais cela peut se faire dès à présent avec `"+p+"rss add <URL>`.")
+                elif len(args) == 2 and args[0] == "add" :
+                    url = args[1]
+                    if not url.startswith("http") : url = "http://"+url
+                    try : url = urlopen(url).url
+                    except (urllib.error.URLError, ValueError) as e :
+                        if e.code == 403 : pass
+                        else :
+                            await client.send_message(message.channel, "URL invalide")
+                            return
+                    if feedparser.parse(url)["entries"] :
+                        with open("config.json", "r") as f : config = json.loads(f.read())
+                        if "feeds" in config[message.server.id] :
+                            if url in config[message.server.id]["feeds"] :
+                                await client.send_message(message.channel, "Ce flux est déjà dans ma liste.")
+                                return
+                            config[message.server.id]["feeds"].append(url)
+                        else :
+                            config[message.server.id]["feeds"] = [url]
+                            await client.send_message(message.channel, "Ceci est votre premier flux RSS, si ce n'est pas fait pensez bien à utiliser la commande `"+p+"config set actuChannel #un-salon` pour que les actualités soient effichées qulque part.")
+                        with open("config.json", "w") as f : f.write(json.dumps(config, indent=4))
+                        await client.add_reaction(message, u"\N{WHITE HEAVY CHECK MARK}")
+                    else : await client.send_message(message.channel, "Le lien du flux RSS est invalide ou ce flux est vide \N{CONFUSED FACE}")
+                elif len(args) == 2 and args[0] == "remove" :
+                    url = args[1]
+                    if not url.startswith("http") : url = "http://"+url
+                    try : url = urlopen(url).url
+                    except (urllib.error.URLError, ValueError) : pass
+                    if not "feeds" or len(feeds) == 0 : await client.send_message(message.channel, "Aucun flux n'a été configuré.")
+                    elif not url in config["feeds"] : await client.send_message(message.channel, "Ce flux n'apparait pas dans ma liste.")
+                    else :
+                        with open("config.json", "r") as f : config = json.loads(f.read())
+                        config[message.server.id]["feeds"].remove(url)
+                        with open("config.json", "w") as f : f.write(json.dumps(config, indent=4))
+                        await client.add_reaction(message, u"\N{WHITE HEAVY CHECK MARK}")
+                else : await client.send_message(message.channel, "Usage : `"+p+"rss <list|add|remove> [url]`.")
+
+            elif cmd == "asciiart" :
+                if len(message.attachments) != 1 :
+                    await client.send_message(message.channel, "J'attends une image.")
+                    return
+                url = message.attachments[0]["url"]
+                filename = url.split("/")[-1]
+                req = Request(url, headers={'User-Agent': "Je n'suis pas un robot (enfin si mais un gentil ^^) !"})
+                with open(filename, "wb") as f : f.write(urlopen(req).read())
+
+                with open("score-CN.json", "r") as f : scores = json.loads(f.read())
+
+                font = ImageFont.truetype('courier-new.ttf', 10)
+
+                W = 7
+                H = 7
+
+                try : base = Image.open(filename).convert('RGB')
+                except OSError :
+                    await client.send_message(message.channel, "Je ne connais pas ce format d'image.")
+                    return
+
+                if max(base.size) > 500 :
+                    await client.send_message(message.channel, "La largeur et la hauteur de l'image ne doivent pas dépasser 500 pixels.")
+                    return
+
+                await client.add_reaction(message, "\N{TIMER CLOCK}")
+
+                bPixels = base.load()
+
+                img = Image.new('RGB', (base.size[0]*W, base.size[1]*H), (255,255,255))
+                d = ImageDraw.Draw(img)
+
+                txt = ""
+
+                for y in range(0, base.size[1]):
+                    for x in range(0, base.size[0]):
+                        score = 0
+                        for y2 in range(H):
+                            for x2 in range(W):
+                                score += bPixels[x,y][0]
+                                score += bPixels[x,y][1]
+                                score += bPixels[x,y][2]
+                        bestChr = ""
+                        bestScore = 100000000000000
+                        for c in scores :
+                            if (score-scores[c])**2 < (score-bestScore)**2 :
+                                bestChr = chr(int(c))
+                                bestScore = scores[c]
+                        txt += bestChr
+                        d.text((x*W,y*H), bestChr, font=font, fill=(0,0,0))
+                    txt += "\n"
+                img.save("art.png")
+                await client.send_file(message.channel, "art.png")
+                with open("art.txt", "w") as f : f.write(txt)
+                await client.send_file(message.channel, "art.txt")
+                await client.remove_reaction(message, "\N{TIMER CLOCK}", client.user)
+
+
+
+
+
+
+
 
 
 
@@ -1574,7 +1685,7 @@ try :
 
                 
 
-    #client.loop.create_task(actu())
+    client.loop.create_task(actu(client))
     client.run(secret["discord-token"])
 except Exception :
     txt = "\n\n##########[ERREUR FATALE]##########\n" + time.strftime('[%d/%m/%Y %H:%M:%S]') + format_exc() + "\n\n"

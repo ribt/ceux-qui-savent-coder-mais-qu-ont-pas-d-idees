@@ -47,17 +47,29 @@ def getUrl(url) :
     result = unescape(result.read().decode("utf-8"))
     return json.loads(result)
 
-async def actu():
-    await client.wait_until_ready()
-    channel = discord.Object(id='420635603592413185')
-    while not client.is_closed:
-        dernier = time.time()
-        await asyncio.sleep(10*60) # 10 minutes
-        for feed in feeds :
-            rss = feedparser.parse(feed)
-            for i in rss['entries'] :
-                if timegm(i['published_parsed']) > dernier :
-                    await client.send_message(channel, i['link'])
+def p4Affichage(grille):
+    reponse = ""
+    for i in range(7): reponse += str(i+1)+"\N{COMBINING ENCLOSING KEYCAP}"
+    reponse += "\n"
+    for line in grille:
+        for i in line:
+            if i == "J" : reponse += str(discord.utils.get(client.get_all_emojis(), name="p4jaune"))
+            elif i == "R" : reponse += str(discord.utils.get(client.get_all_emojis(), name="p4rouge"))
+            else : reponse += "\N{MEDIUM BLACK CIRCLE}"
+        reponse += "\n"
+    return reponse
 
-def int_to_bytes(x):
-    return list(x.to_bytes((x.bit_length() + 7) // 8, 'big'))
+def p4Winner(grille):
+    for y in range(6):
+        for x in range(7):
+            if y+3 <= 5 and grille[y][x] == grille[y+1][x] == grille[y+2][x] == grille[y+3][x] != "" : return grille[y][x]
+            if x+3 <= 6 and grille[y][x] == grille[y][x+1] == grille[y][x+2] == grille[y][x+3] != "" : return grille[y][x]
+            if y+3 <= 5 and x+3 <= 6 and grille[y][x] == grille[y+1][x+1] == grille[y+2][x+2] == grille[y+3][x+3] != "" : return grille[y][x]
+            if x+3 <= 6 and y-3 >= 0 and grille[y][x] == grille[y-1][x+1] == grille[y-2][x+2] == grille[y-3][x+3] != "" : return grille[y][x]
+    return None
+
+def flatten(grille):
+    reponse = []
+    for line in grille:
+        for i in line : reponse.append(i)
+    return reponse
