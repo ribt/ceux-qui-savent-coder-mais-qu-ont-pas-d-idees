@@ -47,7 +47,7 @@ def getUrl(url) :
     result = unescape(result.read().decode("utf-8"))
     return json.loads(result)
 
-def p4Affichage(grille):
+def p4Affichage(client, grille):
     reponse = ""
     for i in range(7): reponse += str(i+1)+"\N{COMBINING ENCLOSING KEYCAP}"
     reponse += "\n"

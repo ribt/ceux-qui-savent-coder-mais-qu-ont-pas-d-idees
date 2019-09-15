@@ -25,7 +25,7 @@ from math import ceil
 from PIL import Image, ImageDraw, ImageFont
 from bs4 import BeautifulSoup
 import io
-from constantes import fast, aide_fast, caracteres, feeds, pendu, ytCategories
+from constantes import fast, aide_fast, caracteres, pendu, ytCategories
 from fonctions import joliStr, getUrl, p4Affichage, p4Winner, flatten
 
 commandes = {"ascii":      ["<texte>",                                       "Je te convertis ton texte (ASCII) en d'autres bases."],
@@ -48,6 +48,8 @@ commandes = {"ascii":      ["<texte>",                                       "Je
              "ext":        ["<extension>",                                   "Je t'envois plein d'infos croustillantes sur une extension de nom de domaine (`.fr`, `.com`...) totalement pompées sur https://www.gandi.net/."],
              "fast":       ["<niveau>",                                      aide_fast],
              "findinpi":   ["<nombre ou texte>",                             "Je cherche ton nombre dans les 1 000 000 000 premières décimales du nombre pi (et si tu m'envoies du texte je le convertis)."],
+             "frequency":  ["[<texte à analyser>]",                          "Je te fais une superbe anaylse fréquentielle de ton texte, caractère par caractère (le texte peut également être passé via une pièce jointe)."],
+             "frequency-i":["[<texte à analyser>]",                          "Je te fais une superbe anaylse fréquentielle de ton texte caractère par caractère **en ignorant la casse** (le texte peut également être passé via une pièce jointe)."],
              "friend":     ["<@user1> <@user2>",                             "Je calcule le pourcentage d'amitié entre les deux personnes."],
              "gif":        ["[<termes à rechercher>]",                       "Je vais te chercher un GIF sur https://giphy.com/ (une recherche vide donne un GIF aléatoire)."],
              "gps":        ["<latitude,longitude>",                          "Je te donne les trois mots what3words et l'adresse postale correspondants aux coordonnées GPS."],
@@ -60,7 +62,7 @@ commandes = {"ascii":      ["<texte>",                                       "Je
              "lmgtfy":     ["<termes à rechercher>",                         "Let Me Google That For You, je fais une recherche sur Internet pour toi (avec Qwant bien entendu)."],
              "loc":        ["",                                              "Lines Of Code, je te dis combien de lignes comporte actuellement mon programme Python."],
              "love":       ["<@user1> <@user2>",                             "Je calcule le pourcentage d'amour entre les deux personnes."],
-             "mute":       ["<@utilisateur> <temps><s|m|h|j> <motif>",       "**uniquement pour les modérateurs**\nPour mute temporairement quelqu'un."],
+           #  "mute":       ["<@utilisateur> <temps><s|m|h|j> <motif>",       "**uniquement pour les modérateurs**\nPour mute temporairement quelqu'un."],
              "p4":         ["[v2]",                                          "Un super jeu de Puissance4 ! L'argument `v2` sert à jouer à la version moderne où l'on peut éjecter un pion de la dernière ligne au lieu de jouer. Tout le reste est expliqué !"],
              "pi2image":   ["<largeur> <hauteur> [<début>]",                 "Je fabrique une image à partir du nombre pi. `largeur` désigne la largeur de l'image en pixels, `hauteur` pour sa hauteur et `début` représente le rang le la première décimale à utiliser."],
              "ping":       ["",                                              "Je te donne le temps qui s'écoule entre le moment où tu postes ton message et celui où je le reçois."],
@@ -72,10 +74,11 @@ commandes = {"ascii":      ["<texte>",                                       "Je
              "rot13":      ["<texte>",                                       "Je te chiffre/déchiffre ton message en ROT13."],
              "rug":        ["",                                              "Random User Generator, Je te fournis une identité aléatoire un peu crédible si tu veux te faire des faux papiers."],
              "savoir":     ["",                                              "Je te raconte une petite anecdote piochée sur https://www.savoir-inutile.com/"],
+             "scream":     ["<du texte>",                                    "Si jamais tu veux crier su quelqu'un..."],
              "speedtest":  ["",                                              "Je me la pète un peu avec ma conexion de taré \N{FACE WITH STUCK-OUT TONGUE AND WINKING EYE}"],
              "table":      ["<un chiffre>",                                  "Je te montre la table de multiplication de ce chiffre."],
              "tts":        ["<du blabla>",                                   "Je t'envois un petit fichier MP3 où je lis ton blabla."],
-             "unmute":     ["<@quelqu'un>",                                  "**uniquement pour les modérateurs**\nPour unmute dès maintenant quelqu'un qui est toujours mute."],
+           #  "unmute":     ["<@quelqu'un>",                                  "**uniquement pour les modérateurs**\nPour unmute dès maintenant quelqu'un qui est toujours mute."],
              "urban":      ["<an English word>",                             "Je te donne la définition du mot sur Urban Dictionnary (en anglais)."],
              "unicode":    ["<code décimal>",                                "Je renvois le caractère correspondant au code Unicode donné."],
              "user":       ["@mention",                                      "Je te donne quelques infos sur la personne emntionnée."],
@@ -123,8 +126,8 @@ defaultConfig = {"prefix": "!",
                  "managedRolesColor": None,
                  "suggestionsChannel": None,
                  "welcomeChannel": None,
-                 "goodbyeChannel": None,
-                 "actuChannel": None
+                 "goodbyeChannel": None
+                # "actuChannel": None
                  }
 
 def usage(p, commande, mini=False):
@@ -138,7 +141,7 @@ def usage(p, commande, mini=False):
     txt += "`" + p + commandeAff + " " + commandes[commande][0] + "`"
     if not mini : txt += " (`" + p + "help " + commandeAff + "` pour plus de détails)."
     return txt
-
+"""
 async def actu(client):
     await client.wait_until_ready()
     channel = discord.Object(id='404375736254988288')
@@ -152,8 +155,9 @@ async def actu(client):
                 for feed in config[server.id]["feeds"] :
                     rss = feedparser.parse(feed)
                     for i in rss['entries'] :
-                        if timegm(i['updated_parsed']) > dernier :
+                        if "updated_parsed" in i and timegm(i['updated_parsed']) > dernier :
                             await client.send_message(channel, i['link'])
+"""
 
 
 
@@ -227,6 +231,11 @@ try :
                     with open("log/erreurs.txt","a") as f : f.write(time.strftime('[%d/%m/%Y %H:%M:%S]') + "Tux va tenter de redemarrer sur demande de ribt\n")
                     cmd = popen("./restart-tux.sh")
                     exit()
+
+            if message.content == "start minecraft" and message.author.id in ["321675705010225162", "138013151911346176", "382622037077655553"] :
+                cmd = popen("screen -r minecraft -X stuff './start.sh\n'")
+                await client.send_message(message.author, 'Le serveur redémarre, attends 1 minute...')
+
             
             if message.server == None : # MP
                 if message.content.startswith("!flag") :
@@ -586,24 +595,14 @@ try :
 
             elif cmd == "gif" :            
                 if len(args) == 0 :
-                    loader = await client.send_message(message.channel, "Recherche d'un GIF...")
                     url = "http://api.giphy.com/v1/gifs/random?api_key=" + secret["giphy-key"]
                     gif = getUrl(url)['data']
-                    await client.edit_message(loader, "Téléchargement du GIF...")
-                    with open("/home/ribt/python/discord/tmp.gif", "wb") as f : f.write(urlopen(gif['image_url']).read())
-                    await client.edit_message(loader, "Upload du GIF...")
-                    await client.send_file(message.channel, "tmp.gif", filename="random.gif")
-                    await client.delete_message(loader)
+                    await client.send_message(message.channel, gif['image_url'])
                 
                 else :
-                    loader = await client.send_message(message.channel, "Recherche d'un GIF...")
                     url = "http://api.giphy.com/v1/gifs/search?api_key="+ secret["giphy-key"] + "&lang=fr&limit=1&q=" + quote_plus(arg)
                     gif = getUrl(url)['data'][0]
-                    await client.edit_message(loader, "Téléchargement du GIF...")
-                    with open("/home/ribt/python/discord/tmp.gif", "wb") as f : f.write(urlopen(gif['images']['original']['url']).read())
-                    await client.edit_message(loader, "Upload du GIF...")
-                    await client.send_file(message.channel, "tmp.gif", filename=gif['title'].replace(" ", "_").replace("_GIF", "")+".gif")
-                    await client.delete_message(loader)
+                    await client.send_message(message.channel, gif['images']['original']['url'])
 
             elif cmd == "devine" or cmd in alias["devine"] :
                 if message.channel != spamBot :
@@ -622,12 +621,20 @@ try :
                         else :
                            try :
                                 nombreTest = int(proposition.content)
-                                if nombreTest == nombreChoisis : await client.send_message(spamBot, "Gagné en "+str(coups)+" coups "+proposition.author.mention+" !")
-                                elif nombreTest < nombreChoisis : await client.send_message(spamBot, "C'est plus que "+str(nombreTest)+"...")
-                                else : await client.send_message(spamBot, "C'est moins que "+str(nombreTest)+"...")
+                                if nombreTest == nombreChoisis :
+                                    await client.send_message(spamBot, "Gagné en "+str(coups+1)+" coups "+proposition.author.mention+" !")
+                                    boucle = False
+                                elif nombreTest < nombreChoisis :
+                                    await client.send_message(spamBot, "C'est plus que "+str(nombreTest)+"...")
+                                    coups += 1
+                                else :
+                                    await client.send_message(spamBot, "C'est moins que "+str(nombreTest)+"...")
+                                    coups += 1
                            except ValueError : pass
 
             elif cmd == "weather" or cmd in alias["weather"] :
+                await client.send_message(message.channel, "Désolé mais le site meteorologic.net sur lequel je vais chercher mes infos est actuellement hors service.")
+                """
                 try :
                     ville, jours = args
                     jours = int(jours)
@@ -650,6 +657,7 @@ try :
                                     data[i][0] = "__" + data[i][0][:-1] + "__"
                                     await client.send_message(message.channel, "\n".join(data[i]))
                                     i += 1
+                """
 
             elif cmd == "rot13" :
                 if len(args) == 0 : await client.send_message(message.channel, usage(p, cmd))
@@ -719,7 +727,7 @@ try :
                             aucun = False
                     if aucun : await client.send_message(message.channel, "Vous ne pouvez vous ajouter aucun rôle.")
                     else :
-                        if suggestion : txt += "\n(Vous pouvez proposer de nouveaux rôles proposer dans " + suggestion.mention + " \N{WINKING FACE})"
+                        if suggestion : txt += "\n(Vous pouvez proposer de nouveaux rôles dans " + suggestion.mention + " \N{WINKING FACE})"
                         await client.send_message(message.channel, txt)
                 elif len(args) < 2 : await client.send_message(message.channel, usage(p, cmd))
 
@@ -888,6 +896,10 @@ try :
                 with open("haddock.txt","r") as f : c = f.read().split('\n')
                 await client.send_message(message.channel, random.choice(c))
 
+            elif cmd =="mute" or cmd =="unmute" :
+                await client.send_message(message.channel, "Désolé, les commandes de mute ne marchent pas...")
+
+            """
             elif modo in message.author.roles and cmd == "mute" :
                 if len(message.mentions) != 1 : await client.send_message(message.channel, usage(p, cmd))
                 else :
@@ -934,17 +946,17 @@ try :
                         del mute[server.id][message.mention.id]
                         with open("mute.json", "w") as f : f.write(json.dumps(mute, indent=4))
                     else : await cient.send_message(message.channel, "Cette personne n'est pas mute...")
+            """
 
-
-            elif cmd == "youtube" or cmd in alias["youtube"] :
+            if cmd == "youtube" or cmd in alias["youtube"] :
                  if len(args) == 0 : await client.send_message(message.channel, usage(p, cmd))
                  else :
-                    recherche = getUrl("https://www.googleapis.com/youtube/v3/search?part=snippet&maxResults=1&q=" + quote_plus(arg) + "&key=" + secret["google-key"])["items"][0]["id"]
+                    recherche = getUrl("https://www.googleapis.com/youtube/v3/search?part=snippet&maxResults=1&q=" + quote_plus(arg) + "&key=" + secret["youtube-key"])["items"][0]["id"]
                     if recherche == [] : await client.send_message(message.channel, "Aucun résultat...")
                     else :
                         if recherche["kind"] == "youtube#channel" :
                             channelId = recherche["channelId"]
-                            data = getUrl("https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&id=" + channelId + "&key=" + secret["google-key"])["items"][0]
+                            data = getUrl("https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&id=" + channelId + "&key=" + secret["youtube-key"])["items"][0]
                             em = discord.Embed(title=data["snippet"]["title"], colour=0x00ff00)
                             #em.set_image(url=data["snippet"]["thumbnails"]["high"]["url"])
                             em.add_field(name="id :", value=data["id"], inline=True)
@@ -962,7 +974,7 @@ try :
                                 await client.send_message(message.channel, "https://www.youtube.com/channel/"+channelId)
                         elif recherche["kind"] == "youtube#video" :
                             videoId = recherche["videoId"]
-                            data = getUrl("https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics,contentDetails&id=" + videoId + "&key=" + secret["google-key"])["items"][0]
+                            data = getUrl("https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics,contentDetails&id=" + videoId + "&key=" + secret["youtube-key"])["items"][0]
                             em = discord.Embed(title=data["snippet"]["title"], colour=0x00ff00)
                             #em.set_image(url=data["snippet"]["thumbnails"]["high"]["url"])
                             em.add_field(name="id :", value=data["id"], inline=True)
@@ -1004,7 +1016,7 @@ try :
                     leaders = []
                     pos = 1
                     exaquo = 0
-                    for i in range(10):
+                    for i in range(20):
                         best = 0
                         tmp = None
                         for userId in score :
@@ -1020,7 +1032,7 @@ try :
                             pos += 1
                           
                               
-                    txt = "classement de https://ribt.fr/defis/ (TOP 10) :\n\n"
+                    txt = "classement de https://ribt.fr/defis/ (TOP 20) :\n\n"
                     for leader in leaders:
                         txt += str(leader["pos"]) + ". "
                         txt += "**" + discord.utils.get(message.server.members, id=leader["id"]).name + "** "
@@ -1081,6 +1093,9 @@ try :
                 except ValueError :
                     await client.send_message(message.channel, "Une erreur s'est produite, vérifiez vos arguments...")
                     return
+                if n < 0 :
+                	await client.send_message(message.channel, "Désolé je ne sais pas convertir les nombres négatifs \N{CONFUSED FACE}")
+                	return
                 b = str(bin(n))[2:]
 
                 em = discord.Embed(title="Convertisseur de base", colour=0x00ff00)
@@ -1173,21 +1188,37 @@ try :
                         source = unescape(urlopen("https://www.gandi.net/fr/tlds/"+arg+"/rules").read().decode("utf-8"))
                         if "Erreur 404" in source or "Désolé, l'affichage du prix n'est pas disponible en raison d'une erreur." in source : await client.send_message(message.channel, "Pas d'infos pour cette extension...")
                         else :
-                            soup = BeautifulSoup(source, "html.parser")
-                            infos = soup.find("ul", {"class": "ProductFeatures-list"}).find_all("p")
-                            champs = soup.find("ul", {"class": "ProductFeatures-list"}).find_all("h3")
                             em = discord.Embed(title="."+arg, colour=0x00ff00)
-                            for i in range(len(infos)) :
+                            soup = BeautifulSoup(source, "html.parser")
+                            img = soup.find("img", {"class": "TldIcon-image TldIcon-altText-2"})
+                            if img :
+                                fileUrl = img["src"]
+                                if fileUrl.startswith("/") : fileUrl = "https://www.gandi.net"+fileUrl
+                                em.set_image(url=fileUrl)
+                            champs = soup.find("div", {"class": "TldInfos-content"}).find_all("h4")
+                            infos = soup.find("div", {"class": "TldInfos-content"}).find_all("p")
+                            for i in range(len(champs)) :
                                 champ = champs[i].string
-                                if not "Whois" in champ :
-                                    info = re.sub(r"<[^>]*>", "", infos[i].string)
+                                if not "WHOIS" in champ :
+                                    info = infos[i]
+                                    if info.a : info = info.a.string
+                                    else : info = info.string
                                     em.add_field(name=champ+" :", value=info)
-                            soup = BeautifulSoup(re.search(r'<h3 class="TldRules-title">Les règles</h3>(.*)<h3 class="TldRules-title">', source).group(1), "html.parser")
+                            """
                             rules = soup.find_all("strong")[:5]
                             champs = ["Attribution", "Syntaxe", "IDN (noms de domaine accentués)", "Période d'enregistrement", "Sous-extensions disponibles"]
                             for i in range(5) :
                                 rule = re.sub(r"<[^>]*>", "", rules[i].string)
                                 em.add_field(name=champs[i]+" :", value=rule)
+                            """
+                            regles = re.search(r'<h3 class="TldRules-title">Les règles</h3>(.*)<h3 class="TldRules-title">', source).group(1)
+                            champs = re.findall(r"<b>[^<]+? :</b>", regles)
+                            for i in range(len(champs)) :
+                                if i == len(champs)-1 : txt = regles[regles.index(champs[i]):]
+                                else : txt = regles[regles.index(champs[i]):regles.index(champs[i+1])]
+                                txt = re.sub(r"<[^>]*>", "", txt)
+                                champ, valeur = txt.split(":")
+                                em.add_field(name=champ+":", value=valeur)
                             await client.send_message(message.channel, embed=em)
                     except urllib.error.HTTPError as error :
                         if error.code == 404 : await client.send_message(message.channel, "Pas d'infos pour cette extension...")
@@ -1333,12 +1364,16 @@ try :
 
             elif cmd == "ljdc" :
                 source = unescape(urlopen("https://lesjoiesducode.fr/").read().decode("utf-8"))
+                """
                 soup = BeautifulSoup(source, "html.parser")
                 randomUrl = re.search('href="([^"]+)"', str(soup.find("i", {"class": "fas fa-random"}).parent)).group(1)
-                source = unescape(urlopen(randomUrl).read().decode("utf-8"))
+                """
+                for i in range(10) :
+                    randomUrl = random.choice(re.findall('"https://lesjoiesducode.fr/[a-z-]+"', source))[1:-1]
+                    source = unescape(urlopen(randomUrl).read().decode("utf-8"))
                 soup = BeautifulSoup(source, "html.parser")
                 commentaire = soup.find("h1", {"class": "blog-post-title"}).string
-                fileUrl = re.search('<img[^>]*src="([^"]+)"/>', str(soup.find("div", {"class": "blog-post-content"}))).group(1)
+                fileUrl = re.search('<object[^>]*data="([^"]+)"', str(soup.find("div", {"class": "blog-post-content"}))).group(1)
                 em = discord.Embed(title="les_joies_du_code();", description=commentaire, colour=0x00ff00)
                 em.set_image(url=fileUrl)
                 await client.send_message(message.channel, embed=em)
@@ -1382,7 +1417,7 @@ try :
                     txt = "À toi de jouer "+joueur.mention
                     if couleur == "J" : txt += " (jeton "+jetonJaune+")"
                     else : txt += "(jeton "+jetonRouge+")"
-                    txt += "\n\n"+p4Affichage(grille)
+                    txt += "\n\n"+p4Affichage(client, grille)
                     if warn != "" : txt += "\n"+warn
                     await client.edit_message(interface, txt)
                     warn = ""
@@ -1428,7 +1463,7 @@ try :
                                     couleur = "J"
                                     joueur = joueurs[0]
                 await client.delete_message(interface)
-                await client.send_message(message.channel, p4Affichage(grille))
+                await client.send_message(message.channel, p4Affichage(client, grille))
                 if p4Winner(grille) == "J" : await client.send_message(message.channel, "Bravo "+joueurs[0].mention+" tu as battu "+joueurs[1].mention+" !")
                 elif p4Winner(grille) == "R" : await client.send_message(message.channel, "Bravo "+joueurs[1].mention+" tu as battu "+joueurs[0].mention+" !")
                 elif "" in flatten(grille) : await client.send_message(message.channel, "Personne m'a répondu pendant 2 minutes alors j'ai annulé la partie \N{CONFUSED FACE}")
@@ -1552,53 +1587,6 @@ try :
                 await client.send_file(message.channel, "pi.png", content="Voici une image de "+str(width)+"x"+str(height)+" avec les décimales de pi de la "+txt+" à la "+joliStr(begining + width*height*3+1)+" ème.")
                 await client.remove_reaction(message, "\N{TIMER CLOCK}", client.user)
 
-            elif cmd == "rss" :
-                if not admin in message.author.roles :
-                    await client.send_message(message.channel, "Cette commande est réservée à mes administrateurs.")
-                    return
-                if len(args) == 1 and args[0] == "list" :
-                    if "feeds" in config :
-                        txt = "Voici la liste des feeds déjà configurés :"
-                        for feed in config["feeds"] :
-                            txt += "\n- <"+feed+">"
-                        await client.send_message(message.channel, txt)
-                    else : await client.send_message(message.channel, "Aucun flux RSS n'est configuré mais cela peut se faire dès à présent avec `"+p+"rss add <URL>`.")
-                elif len(args) == 2 and args[0] == "add" :
-                    url = args[1]
-                    if not url.startswith("http") : url = "http://"+url
-                    try : url = urlopen(url).url
-                    except (urllib.error.URLError, ValueError) as e :
-                        if e.code == 403 : pass
-                        else :
-                            await client.send_message(message.channel, "URL invalide")
-                            return
-                    if feedparser.parse(url)["entries"] :
-                        with open("config.json", "r") as f : config = json.loads(f.read())
-                        if "feeds" in config[message.server.id] :
-                            if url in config[message.server.id]["feeds"] :
-                                await client.send_message(message.channel, "Ce flux est déjà dans ma liste.")
-                                return
-                            config[message.server.id]["feeds"].append(url)
-                        else :
-                            config[message.server.id]["feeds"] = [url]
-                            await client.send_message(message.channel, "Ceci est votre premier flux RSS, si ce n'est pas fait pensez bien à utiliser la commande `"+p+"config set actuChannel #un-salon` pour que les actualités soient effichées qulque part.")
-                        with open("config.json", "w") as f : f.write(json.dumps(config, indent=4))
-                        await client.add_reaction(message, u"\N{WHITE HEAVY CHECK MARK}")
-                    else : await client.send_message(message.channel, "Le lien du flux RSS est invalide ou ce flux est vide \N{CONFUSED FACE}")
-                elif len(args) == 2 and args[0] == "remove" :
-                    url = args[1]
-                    if not url.startswith("http") : url = "http://"+url
-                    try : url = urlopen(url).url
-                    except (urllib.error.URLError, ValueError) : pass
-                    if not "feeds" or len(feeds) == 0 : await client.send_message(message.channel, "Aucun flux n'a été configuré.")
-                    elif not url in config["feeds"] : await client.send_message(message.channel, "Ce flux n'apparait pas dans ma liste.")
-                    else :
-                        with open("config.json", "r") as f : config = json.loads(f.read())
-                        config[message.server.id]["feeds"].remove(url)
-                        with open("config.json", "w") as f : f.write(json.dumps(config, indent=4))
-                        await client.add_reaction(message, u"\N{WHITE HEAVY CHECK MARK}")
-                else : await client.send_message(message.channel, "Usage : `"+p+"rss <list|add|remove> [url]`.")
-
             elif cmd == "asciiart" :
                 if len(message.attachments) != 1 :
                     await client.send_message(message.channel, "J'attends une image.")
@@ -1656,6 +1644,68 @@ try :
                 await client.send_file(message.channel, "art.txt")
                 await client.remove_reaction(message, "\N{TIMER CLOCK}", client.user)
 
+            elif cmd == "scream" :
+                await client.send_file(message.channel, "scream1.png")
+                lines = [""]
+                words = arg.split(" ")
+                for word in words :
+                    if len(lines[-1] + " " + word) <= 35 : lines[-1] += " " + word
+                    elif len(word) > 35 : lines[-1] += word
+                    else :
+                        lines[-1] = "**"+" "*(40-len(lines[-1]))+"**"+lines[-1]
+                        lines.append("")
+                lines[-1] = "**"+" "*(40-len(lines[-1]))+"**"+lines[-1]
+
+
+                await client.send_message(message.channel, "\n".join(lines))
+                await client.send_file(message.channel, "scream2.png")
+
+            elif cmd == "frequency" :
+                if len(message.attachments) > 0 :
+                    await client.send_message(message.channel, "Pièce jointe détéctée, lecture en temps que fichier texte...")
+                    req = Request(message.attachments[0]["url"], headers={'User-Agent': "Je n'suis pas un robot (enfin si mais un gentil ^^) !"})
+                    try : arg = urlopen(req).read().decode()
+                    except UnicodeDecodeError :
+                        await client.send_message(message.channel, "Je n'arrive pas à décoder la pièce jointe :/")
+                        return
+                if len(arg) < 1 :
+                    await client.send_message(message.channel, usage(p, cmd))
+                    return
+                data = {}
+                for i in arg :
+                    if i in data : data[i] += 1
+                    else : data[i] = 1
+                txt = "```"
+                for i in sorted(data.items(), key=lambda kv: kv[1])[::-1] :
+                    txt += "- '"+i[0].replace("\n", "\\n")+"' : "+str(round(i[1]/len(arg)*100, 3))+"%\n"
+                txt += "```"
+                await client.send_message(message.channel, txt)
+
+            elif cmd == "frequency-i" :
+                if len(message.attachments) > 0 :
+                    await client.send_message(message.channel, "Pièce jointe détéctée, lecture en temps que fichier texte...")
+                    req = Request(message.attachments[0]["url"], headers={'User-Agent': "Je n'suis pas un robot (enfin si mais un gentil ^^) !"})
+                    try : arg = urlopen(req).read().decode()
+                    except UnicodeDecodeError :
+                        await client.send_message(message.channel, "Je n'arrive pas à décoder la pièce jointe :/")
+                        return
+                if len(arg) < 1 :
+                    await client.send_message(message.channel, usage(p, cmd))
+                    return
+                data = {}
+                for i in arg :
+                    if i.upper() in data : data[i.upper()] += 1
+                    else : data[i.upper()] = 1
+                txt = "```"
+                for i in sorted(data.items(), key=lambda kv: kv[1])[::-1] :
+                    txt += "- '"+i[0].replace("\n", "\\n")+"' : "+str(round(i[1]/len(arg)*100, 3))+"%\n"
+                txt += "```"
+                await client.send_message(message.channel, txt)
+
+
+
+
+
 
 
 
@@ -1670,7 +1720,57 @@ try :
 
             # ^ nouvelles commandes ici ^
 
-            elif len(msg) > 2 and msg[0] == p : await client.add_reaction(message, u"\N{UPSIDE-DOWN FACE}")
+            elif cmd not in commandes.keys() and not cmd in alias.values() :
+                await client.add_reaction(message, u"\N{UPSIDE-DOWN FACE}")
+
+            """
+            elif cmd == "rss" :
+                if not admin in message.author.roles :
+                    await client.send_message(message.channel, "Cette commande est réservée à mes administrateurs.")
+                    return
+                if len(args) == 1 and args[0] == "list" :
+                    if "feeds" in config :
+                        txt = "Voici la liste des feeds déjà configurés :"
+                        for feed in config["feeds"] :
+                            txt += "\n- <"+feed+">"
+                        await client.send_message(message.channel, txt)
+                    else : await client.send_message(message.channel, "Aucun flux RSS n'est configuré mais cela peut se faire dès à présent avec `"+p+"rss add <URL>`.")
+                elif len(args) == 2 and args[0] == "add" :
+                    url = args[1]
+                    if not url.startswith("http") : url = "http://"+url
+                    try : url = urlopen(url).url
+                    except (urllib.error.URLError, ValueError) as e :
+                        if e.code == 403 : pass
+                        else :
+                            await client.send_message(message.channel, "URL invalide")
+                            return
+                    if feedparser.parse(url)["entries"] :
+                        with open("config.json", "r") as f : config = json.loads(f.read())
+                        if "feeds" in config[message.server.id] :
+                            if url in config[message.server.id]["feeds"] :
+                                await client.send_message(message.channel, "Ce flux est déjà dans ma liste.")
+                                return
+                            config[message.server.id]["feeds"].append(url)
+                        else :
+                            config[message.server.id]["feeds"] = [url]
+                            await client.send_message(message.channel, "Ceci est votre premier flux RSS, si ce n'est pas fait pensez bien à utiliser la commande `"+p+"config set actuChannel #un-salon` pour que les actualités soient effichées qulque part.")
+                        with open("config.json", "w") as f : f.write(json.dumps(config, indent=4))
+                        await client.add_reaction(message, u"\N{WHITE HEAVY CHECK MARK}")
+                    else : await client.send_message(message.channel, "Le lien du flux RSS est invalide ou ce flux est vide \N{CONFUSED FACE}")
+                elif len(args) == 2 and args[0] == "remove" :
+                    url = args[1]
+                    if not url.startswith("http") : url = "http://"+url
+                    try : url = urlopen(url).url
+                    except (urllib.error.URLError, ValueError) : pass
+                    if not "feeds" or len(feeds) == 0 : await client.send_message(message.channel, "Aucun flux n'a été configuré.")
+                    elif not url in config["feeds"] : await client.send_message(message.channel, "Ce flux n'apparait pas dans ma liste.")
+                    else :
+                        with open("config.json", "r") as f : config = json.loads(f.read())
+                        config[message.server.id]["feeds"].remove(url)
+                        with open("config.json", "w") as f : f.write(json.dumps(config, indent=4))
+                        await client.add_reaction(message, u"\N{WHITE HEAVY CHECK MARK}")
+                else : await client.send_message(message.channel, "Usage : `"+p+"rss <list|add|remove> [url]`.")
+            """
                 
         except Exception :
             txt = time.strftime('[%d/%m/%Y %H:%M:%S]\n')
@@ -1685,7 +1785,7 @@ try :
 
                 
 
-    client.loop.create_task(actu(client))
+    #client.loop.create_task(actu(client))
     client.run(secret["discord-token"])
 except Exception :
     txt = "\n\n##########[ERREUR FATALE]##########\n" + time.strftime('[%d/%m/%Y %H:%M:%S]') + format_exc() + "\n\n"
