@@ -1197,11 +1197,15 @@ try :
                 else :
                     arg = arg.lower().replace(".","")
                     try :
-                        source = unescape(urlopen("https://www.gandi.net/fr/tlds/"+arg+"/rules").read().decode("utf-8"))
-                        if "Erreur 404" in source or "Désolé, l'affichage du prix n'est pas disponible en raison d'une erreur." in source : await client.send_message(message.channel, "Pas d'infos pour cette extension...")
+                        source = unescape(urlopen("https://www.gandi.net/fr/domain/tld/"+arg).read().decode("utf-8"))
+                        if "Erreur 404" in source or "Désolé, l'affichage du prix n'est pas disponible en raison d'une erreur." in source :
+                            await client.send_message(message.channel, "Pas d'infos pour cette extension...")
                         else :
                             em = discord.Embed(title="."+arg+" (d'après gandi.net)", colour=0x00ff00)
                             soup = BeautifulSoup(source, "html.parser")
+                            desc = soup.find_all("p", {"class": "TldHeader-description-content"})
+                            if len(desc) > 0:
+                                em.description = desc[0].string
                             prix = soup.find_all("p", {"class": "TldPricing-prices"})[2]
                             if prix.strong : em.add_field(name="prix :", value=prix.strong.string)
                             #elif prix.find("del") : em.add_field(name="prix :", value="~~"+prix.find("del").string+"~~ "+prix.find("ins").string)
@@ -1214,18 +1218,12 @@ try :
                             infos = soup.find("div", {"class": "TldInfos-content"}).find_all("p")
                             for i in range(len(champs)) :
                                 champ = champs[i].string
-                                if not "WHOIS" in champ :
-                                    info = infos[i]
-                                    if info.a : info = info.a.string
-                                    else : info = info.string
-                                    em.add_field(name=champ+" :", value=info)
-                            """
-                            rules = soup.find_all("strong")[:5]
-                            champs = ["Attribution", "Syntaxe", "IDN (noms de domaine accentués)", "Période d'enregistrement", "Sous-extensions disponibles"]
-                            for i in range(5) :
-                                rule = re.sub(r"<[^>]*>", "", rules[i].string)
-                                em.add_field(name=champs[i]+" :", value=rule)
-                            """
+                                info = infos[i]
+                                if info.a :
+                                    info = "[{}]({})".format(info.a.string, info.a.attrs["href"])
+                                else :
+                                    info = info.string
+                                em.add_field(name=champ+" :", value=info)
                             regles = re.search(r'<h3 class="TldRules-title">Les règles</h3>(.*)<h3 class="TldRules-title">', source).group(1)
                             champs = re.findall(r"<b>[^<]+? :</b>", regles)
                             for i in range(len(champs)) :
