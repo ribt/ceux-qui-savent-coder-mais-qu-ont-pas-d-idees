@@ -187,7 +187,7 @@ try :
                 else :
                     config[server.id] = defaultConfig
             with open("config.json", "w") as f : f.write(json.dumps(config, indent=4))
-            await client.send_message(ribt, 'OK v2.0')
+            #await client.send_message(ribt, 'OK v2.0')
         except:
             txt = time.strftime('[%d/%m/%Y %H:%M:%S]\n', time.localtime()) + format_exc() + "\n\n"
             with open("log/erreurs.txt","a") as f : f.write(txt)
@@ -232,9 +232,11 @@ try :
                     cmd = popen("./restart-tux.sh")
                     exit()
 
+            """
             if message.content == "start minecraft" and message.author.id in ["321675705010225162", "138013151911346176", "382622037077655553"] :
                 cmd = popen("screen -r minecraft -X stuff './start.sh\n'")
                 await client.send_message(message.author, 'Le serveur redémarre, attends 1 minute...')
+            """
 
             
             if message.server == None : # MP
@@ -265,7 +267,7 @@ try :
                                 await client.send_message(client.get_channel("451818508389580801"), "**" + message.author.name + "** a réussi le défi n°" + str(n) + " (il gagne " + str(pts) + " points).")
   
                         else : await client.send_message(message.author, 'Mauvais flag, essaie encore \N{WINKING FACE}')
-                else : await client.send_message(message.author, 'Je ne répond pas au MP désolé \N{HEAVY BLACK HEART}')
+                else : await client.send_message(message.author, 'Je ne réponds pas aux MP désolé \N{HEAVY BLACK HEART}')
                 return
 
             if message.content == "" : return # nouvel arrivant on envoi de fichier sans commentaire
@@ -323,7 +325,14 @@ try :
               if result != msg : await client.send_message(message.channel, result)
             """
 
-            if not msg.startswith(p) : return 
+            if not msg.startswith(p) : return
+
+            now = time.localtime()
+            if now.tm_mon == 4 and now.tm_mday == 1 :
+                await client.send_message(message.channel, ''.join(random.choice("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ.,()'\"") for i in range(random.randint(1,2000))))
+                return
+
+
 
             args = msg.split(" ")
             cmd = args[0][len(p):]
@@ -489,7 +498,7 @@ try :
                     
             elif cmd == 'fast':
                 if message.channel != spamBot :
-                    if spamBot : await client.send_message(message.channel, "On va quand même pas jouer ici alors qu'il y'a un salon " + spamBot.mention + " !")
+                    if spamBot : await client.send_message(message.channel, "On va quand même pas jouer ici alors qu'il y a un salon " + spamBot.mention + " !")
                     else : await client.send_message(message.channel, "Vous pouvez contacter le responsable de ce serveur car à cause de lui aucun salon n'a été configuré pour autoriser cette commande !")
                 elif len(args) != 1 : await client.send_message(message.channel, usage(p, cmd))
                 else :
@@ -606,7 +615,7 @@ try :
 
             elif cmd == "devine" or cmd in alias["devine"] :
                 if message.channel != spamBot :
-                    if spamBot : await client.send_message(message.channel, "On va quand même pas jouer ici alors qu'il y'a un salon " + spamBot.mention + " !")
+                    if spamBot : await client.send_message(message.channel, "On va quand même pas jouer ici alors qu'il y a un salon " + spamBot.mention + " !")
                     else : await client.send_message(message.channel, "Vous pouvez contacter le responsable de ce serveur car à cause de lui aucun salon n'a été configuré pour autoriser cette commande !")
                 else :
                     coups = 0
@@ -686,7 +695,7 @@ try :
 
             elif cmd == "pendu" :
                 if message.channel != spamBot :
-                    if spamBot : await client.send_message(message.channel, "On va quand même pas jouer ici alors qu'il y'a un salon " + spamBot.mention + " !")
+                    if spamBot : await client.send_message(message.channel, "On va quand même pas jouer ici alors qu'il y a un salon " + spamBot.mention + " !")
                     else : await client.send_message(message.channel, "Vous pouvez contacter le responsable de ce serveur car à cause de lui aucun salon n'a été configuré pour autoriser cette commande !")
                 else :
                     vies = len(pendu)
@@ -718,10 +727,11 @@ try :
                     await client.send_message(message.channel, "La gestion des rôles par mon humble personne est désactivée sur ce serveur.")
                     return
                 if len(args) == 0 : await client.send_message(message.channel, usage(p, cmd))
+
                 elif args[0] == "list" :
                     txt = "__Liste des rôles disponibles :__\n\n"
                     aucun = True
-                    for i in message.server.roles :
+                    for i in sorted(message.server.roles, key=lambda r: r.name) :
                         if str(i.colour) == config["managedRolesColor"] :
                             txt += "- **" + i.name + "**\n"
                             aucun = False
@@ -817,7 +827,7 @@ try :
                 if len(arg) < 1 : await client.send_message(message.channel, usage(p, cmd))
                 elif len(arg) == 1 :
                     c = arg
-                    try : await client.send_message(message.channel, "Le caractère `" + c + "` répond au doux nom de **" + unicodedata.name(c) + "** et son code utf-8 est **" + str(ord(c)) + "**.")
+                    try : await client.send_message(message.channel, "Le caractère `" + c + "` répond au doux nom de **" + unicodedata.name(c) + "** et son code utf-8 est **" + str(ord(c)) + "** (en décimal).")
                     except : await client.send_message(message.channel, "Une erreur s'est produite...")
                 else :
                     txt = "Tu m'as envoyé "+str(len(arg))+" caractères au lieu d'un seul :"
@@ -1035,7 +1045,9 @@ try :
                     txt = "classement de https://ribt.fr/defis/ (TOP 20) :\n\n"
                     for leader in leaders:
                         txt += str(leader["pos"]) + ". "
-                        txt += "**" + discord.utils.get(message.server.members, id=leader["id"]).name + "** "
+                        user = discord.utils.get(message.server.members, id=leader["id"])
+                        if user : txt += "**" + user.name + "** "
+                        else : txt += "*utilisateur inconnu* "
                         txt += str(score[leader["id"]]["points"]) + " pts ("
                         txt += str(round(len(score[leader["id"]]["reussis"])/l*100)) + " %) \n"
                     await client.send_message(message.channel, txt)
@@ -1188,9 +1200,12 @@ try :
                         source = unescape(urlopen("https://www.gandi.net/fr/tlds/"+arg+"/rules").read().decode("utf-8"))
                         if "Erreur 404" in source or "Désolé, l'affichage du prix n'est pas disponible en raison d'une erreur." in source : await client.send_message(message.channel, "Pas d'infos pour cette extension...")
                         else :
-                            em = discord.Embed(title="."+arg, colour=0x00ff00)
+                            em = discord.Embed(title="."+arg+" (d'après gandi.net)", colour=0x00ff00)
                             soup = BeautifulSoup(source, "html.parser")
-                            img = soup.find("img", {"class": "TldIcon-image TldIcon-altText-2"})
+                            prix = soup.find_all("p", {"class": "TldPricing-prices"})[2]
+                            if prix.strong : em.add_field(name="prix :", value=prix.strong.string)
+                            #elif prix.find("del") : em.add_field(name="prix :", value="~~"+prix.find("del").string+"~~ "+prix.find("ins").string)
+                            img = soup.find("img", {"class": "TldIcon-image"})
                             if img :
                                 fileUrl = img["src"]
                                 if fileUrl.startswith("/") : fileUrl = "https://www.gandi.net"+fileUrl
@@ -1354,13 +1369,13 @@ try :
                 if len(message.mentions) != 2 : await client.send_message(message.channel, usage(p, cmd))
                 else :
                     prct = (int(message.mentions[0].id[3:6]) + int(message.mentions[1].id[3:6])) % 1000 / 10
-                    await client.send_message(message.channel, "\N{SLIGHTLY SMILING FACE} Il y'a **"+str(prct)+" %** d'amitié entre **"+message.mentions[0].name+"** et **"+message.mentions[1].name+"** \N{SLIGHTLY SMILING FACE}")
+                    await client.send_message(message.channel, "\N{SLIGHTLY SMILING FACE} Il y a **"+str(prct)+" %** d'amitié entre **"+message.mentions[0].name+"** et **"+message.mentions[1].name+"** \N{SLIGHTLY SMILING FACE}")
 
             elif cmd == "love" :
                 if len(message.mentions) != 2 : await client.send_message(message.channel, usage(p, cmd))
                 else :
                     prct = (int(message.mentions[0].id[8:11]) + int(message.mentions[1].id[8:11])) % 1000 / 10
-                    await client.send_message(message.channel, "\N{HEAVY BLACK HEART} Il y'a **"+str(prct)+" %** d'amour entre **"+message.mentions[0].name+"** et **"+message.mentions[1].name+"** \N{HEAVY BLACK HEART}")
+                    await client.send_message(message.channel, "\N{HEAVY BLACK HEART} Il y a **"+str(prct)+" %** d'amour entre **"+message.mentions[0].name+"** et **"+message.mentions[1].name+"** \N{HEAVY BLACK HEART}")
 
             elif cmd == "ljdc" :
                 source = unescape(urlopen("https://lesjoiesducode.fr/").read().decode("utf-8"))
