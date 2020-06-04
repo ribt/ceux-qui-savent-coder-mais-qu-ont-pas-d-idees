@@ -20,10 +20,12 @@ def joliStr(n, signed=False):
 
 
     result = ""
-    if ent == 0 : result = "0 "
     while ent > 0:
-        result = str(ent%1000) + " " + result
+        result = "{:03d}".format(ent%1000) + " " + result
         ent //= 1000
+
+    result = result.lstrip("0")
+    if result == "" : result = "0 "
 
     if signed and n > 0:
         result = "+" + result
@@ -35,7 +37,7 @@ def joliStr(n, signed=False):
 
     return result[:-1]
 
-def getUrl(url, headers={'User-Agent': "Je n'suis pas un robot (enfin si mais un gentil ^^) !"}) :
+def getUrl(url, headers={"Accept":"application/json", "Accept-Language":"fr", "User-Agent": "Je n'suis pas un robot (enfin si mais un gentil ^^) !"}) :
     req = Request(url, headers=headers)
     result = urlopen(req)
     result = unescape(result.read().decode("utf-8"))

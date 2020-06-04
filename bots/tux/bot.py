@@ -2,7 +2,7 @@ import discord
 import asyncio
 import time
 from calendar import timegm
-from datetime import date
+from datetime import date, datetime
 import random
 from traceback import format_exc
 import re
@@ -84,7 +84,7 @@ commandes = {"ascii":      ["<texte>",                                       "Je
              "user":       ["@mention",                                      "Je te donne quelques infos sur la personne emntionnée."],
              "vps":        ["",                                              "Je te donne quelques infos essentielles sur le VPS qui m'héberge."],
              "w3w":        ["<mot1.mot2.mot3> [langue]",                     "Je te donne les coordonnées GPS et l'adresse postale du lieu à partir des ses trois mots what3words. La langue est le code ISO 639-1 de deux lettres coorespondant. Ce paramètre est facultatif si les mots sont français. Plus d'infos sur https://what3words.com/fr/a-propos/"],
-             "weather":    ["<ville> <jours>",                               "Je te prédis la météo de la ville pendant un certain nombre de jours (pas plus de 7 non plus, faut pas déconner non plus)."],
+             "weather":    ["<ville>",                                       "Je te dis quel temps il fait dans la ville."],
              "whois":      ["<nom de domaine>",                              "Je te donne queqlues infos sur le nom de domaine"],
              "wiki":       ["<termes à rechercher>",                         "Je fais la recherche sur Wikipédia à ta place."],
              "youtube":    ["<nom de la vidéo/chaîne>",                      "Je te montre plein d'infos sur cette vidéo/chaîne."]
@@ -141,24 +141,6 @@ def usage(p, commande, mini=False):
     txt += "`" + p + commandeAff + " " + commandes[commande][0] + "`"
     if not mini : txt += " (`" + p + "help " + commandeAff + "` pour plus de détails)."
     return txt
-"""
-async def actu(client):
-    await client.wait_until_ready()
-    channel = discord.Object(id='404375736254988288')
-    while not client.is_closed:
-        dernier = time.time()
-        while time.time() < dernier+600 : await asyncio.sleep(10) # 10 minutes
-        with open("config.json", "r") as f : config = json.loads(f.read())
-        for server in client.servers :
-            channel = discord.Object(id=config[server.id]["actuChannel"])
-            if channel and "feeds" in config[server.id] and len(config[server.id]["feeds"]) > 0 :
-                for feed in config[server.id]["feeds"] :
-                    rss = feedparser.parse(feed)
-                    for i in rss['entries'] :
-                        if "updated_parsed" in i and timegm(i['updated_parsed']) > dernier :
-                            await client.send_message(channel, i['link'])
-"""
-
 
 
 with open("wordlist/courants.txt", "r") as f : mots = f.read().split("\n")
@@ -289,26 +271,6 @@ try :
             suggestion = discord.utils.get(message.server.channels, id=config["suggestionsChannel"])
             humour = config["humorPercent"]
 
-            with open("mute.json", "r") as f : mute = json.loads(f.read())
-            if serv in mute :
-                if message.author.id in mute[serv] :
-                    if mute[serv][message.author.id]['expires'] < time.time() :
-                        del mute[serv][message.author.id]
-                        with open("mute.json", "w") as f : f.write(json.dumps(mute, indent=4))
-                        if muteRole in message.author.roles :
-                            try : await client.remove_roles(message.author, muteRole)
-                            except discord.errors.Forbidden : await client.send_message(message.channel, "Je n'ai pas le droit de t'enlever le rôle "+muteRole.mention+" \N{SMILING FACE WITH OPEN MOUTH AND COLD SWEAT}")
-                    else :    
-                        try : await client.delete_message(message)
-                        except discord.errors.Forbidden : await client.send_message(message.channel, "Si je n'ai pas le droit de supprimer les messages des gens mute ça peut vite devenir chiant \N{SMILING FACE WITH OPEN MOUTH AND COLD SWEAT}")
-                        try : await client.send_message(message.author, "Il te reste encore " + str(round(mute[serv][message.author.id]['expires'] - time.time())) + " secondes pour réfléchir à ce que tu as fait.")
-                        except discord.errors.Forbidden : pass
-                        return
-            try : 
-                if muteRole in message.author.roles :
-                    try : await client.remove_roles(message.author, muteRole)
-                    except discord.errors.Forbidden : await client.send_message(message.channel, "Je n'ai pas le droit de t'enlever le rôle "+muteRole.mention+" \N{SMILING FACE WITH OPEN MOUTH AND COLD SWEAT}")
-            except AttributeError : pass
 
             if random.randint(0, 99) < humour :
                 if re.match(r"(?i)^ah?\W*$", msg) : await client.send_message(message.channel, 'tchoum')
@@ -331,7 +293,6 @@ try :
             if now.tm_mon == 4 and now.tm_mday == 1 :
                 await client.send_message(message.channel, ''.join(random.choice("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ.,()'\"") for i in range(random.randint(1,2000))))
                 return
-
 
 
             args = msg.split(" ")
@@ -588,7 +549,7 @@ try :
                 em.add_field(name="date de naissance :", value=jour[2] + "/" + jour[1] + "/" + jour[0] + " à " + heure[:-1], inline=False)
                 em.add_field(name="age :", value=str(data['dob']['age']) + " ans", inline=False)
                 em.add_field(name="numéro de téléphone :", value=data['phone'].replace("-", " "), inline=False)
-                em.add_field(name="adresse :", value=data['location']['street'] + " à " + data['location']['city'].title(), inline=False)
+                em.add_field(name="adresse :", value=str(data['location']['street']['number'])+" "+data['location']['street']['name'] + " à " + data['location']['city'].title(), inline=False)
                 em.add_field(name="pseudo :", value=data['login']['username'], inline=False)
                 em.add_field(name="mot de passe :", value=data['login']['password'], inline=False)
                 await client.send_message(message.channel, embed=em)
@@ -642,31 +603,38 @@ try :
                            except ValueError : pass
 
             elif cmd == "weather" or cmd in alias["weather"] :
-                await client.send_message(message.channel, "Désolé mais le site meteorologic.net sur lequel je vais chercher mes infos est actuellement hors service.")
-                """
-                try :
-                    ville, jours = args
-                    jours = int(jours)
-                except ValueError :
+                if len(args) == 0 :
                     await client.send_message(message.channel, usage(p, cmd))
                 else :
-                    if not(1 <= jours <= 7) : await client.send_message(message.channel, "<jours> doit être un nombre entre 1 et 7")
-                    else :
-                        try : data = feedparser.parse("http://api.meteorologic.net/forecarss?p=" + quote_plus(ville))['entries'][0]['summary']
-                        except IndexError : await client.send_message(message.channel, "Pas de données météo pour cette ville...")
+                    try :
+                        data = getUrl("http://api.openweathermap.org/data/2.5/weather?q="+quote_plus(arg)+"&units=metric&lang=fr&appid="+secret["openweather-key"])
+                        em = discord.Embed(title="météo à "+data["name"], description=data["weather"][0]["description"], colour=0x00ff00)
+                        em.set_thumbnail(url="http://openweathermap.org/img/wn/"+data["weather"][0]["icon"]+"@2x.png")
+                        em.add_field(name="température :", value=str(data["main"]["temp"])+"°C")
+                        em.add_field(name="ressenti :", value=str(data["main"]["feels_like"])+"°C")
+                        if "rain" in data :
+                            em.add_field(name="pluie :", value=str(data["rain"]["1h"])+" mm depuis 1h")
                         else :
-                            if data == "" : await client.send_message(message.channel, "Pas de données météo pour cette ville...")
-                            else :
-                                data = data.replace("<strong>", "").replace("</strong>", "").replace("\t", "").replace("<br />", "\n")
-                                data = data.split("\n\n\n")[:-1]
-                                data[0] = "\n" + data[0]
-                                i = 0
-                                while i < len(data) and i < jours :
-                                    data[i] = data[i].split("\n")[1:-1]
-                                    data[i][0] = "__" + data[i][0][:-1] + "__"
-                                    await client.send_message(message.channel, "\n".join(data[i]))
-                                    i += 1
-                """
+                            em.add_field(name="pluie :", value="pas de pluie")
+                        if "clouds" in data :
+                            em.add_field(name="pourcentage de nuages :", value=str(data["clouds"]["all"])+"%")
+                        if "snow" in data :
+                            em.add_field(name="neige :", value=str(data["snow"]["1h"])+" mm depuis 1h")
+                        em.add_field(name="humidité :", value=str(data["main"]["humidity"])+"%")
+                        em.add_field(name="pression :", value=str(data["main"]["pressure"])+" hPa")
+                        if "wind" in data :
+                            em.add_field(name="vent :", value=str(data["wind"]["speed"])+" m/s ("+str(data["wind"]["deg"])+"°)")
+                        else :
+                            em.add_field(name="vent :", value="pas de vent")
+                        em.timestamp = datetime.fromtimestamp(data["dt"])
+                        await client.send_message(message.channel, embed=em)
+                    except urllib.error.HTTPError as e :
+                        if e.code == 404:
+                            await client.send_message(message.channel, "Je ne trouve pas d'infos pour cette ville...")
+                        else :
+                            raise e
+
+
 
             elif cmd == "rot13" :
                 if len(args) == 0 : await client.send_message(message.channel, usage(p, cmd))
@@ -770,7 +738,7 @@ try :
                 if not(1 <= len(args) <= 2) or args[0].count(".") != 2: await client.send_message(message.channel, usage(p, cmd))
                 else :
                     url = "https://api.what3words.com/v2/forward?addr=" + quote_plus(args[0]) + "&key=" + secret["w3w-key"] + "&format=json&display=minimal"
-                    if len(args) == 1 and args[1].lower() != "fr" : url += "&lang=" + quote_plus(args[1].lower())
+                    if len(args) == 2 and args[1].lower() != "fr" : url += "&lang=" + quote_plus(args[1].lower())
                     else : url += "&lang=fr"
                     gps = getUrl(url)['geometry']
                     if gps == None : await client.send_message(message.channel, "Aucun résultat avec ces trois mots...")
@@ -908,56 +876,7 @@ try :
             elif cmd =="mute" or cmd =="unmute" :
                 await client.send_message(message.channel, "Désolé, les commandes de mute ne marchent pas...")
 
-            """
-            elif modo in message.author.roles and cmd == "mute" :
-                if len(message.mentions) != 1 : await client.send_message(message.channel, usage(p, cmd))
-                else :
-                    user = message.mentions[0]
-                    try :
-                        if args[1][-1] == "s" : temps = int(args[1][:-1])
-                        elif args[1][-1] == "m" : temps = int(args[1][:-1])*60
-                        elif args[1][-1] == "h" : temps = int(args[1][:-1])*3600
-                        elif args[1][-1] == "j" : temps = int(args[1][:-1])*3600*24
-                    except ValueError : await client.send_message(message.channel, "Le temps donné est invalide.")
-                    motif = " ".join(args[2:])
-                    em = discord.Embed(title="Confirmation de mute", description="Tu as une minute pour confirmer ou annuler le mute.", colour=0x00ff00)
-                    em.add_field(name="utilisateur :", value=user.name)
-                    em.add_field(name="durée :", value=args[1]+" ("+str(temps)+" secondes)")
-                    em.add_field(name="motif :", value=motif)
-                    demande = await client.send_message(message.channel, embed=em)
-                    await client.add_reaction(demande, "\N{WHITE HEAVY CHECK MARK}")
-                    await client.add_reaction(demande, "\N{CROSS MARK}")
-                    res = await client.wait_for_reaction(user=message.author, timeout=60, message=demande)
-                    if res and str(res.reaction.emoji) == "\N{WHITE HEAVY CHECK MARK}" :
-                        with open("mute.json", "r") as f : mute = json.loads(f.read())
-                        if not serv in mute : mute[serv] = {}
-                        mute[serv][user.id] = {}
-                        mute[serv][user.id]['time'] = args[1]
-                        mute[serv][user.id]['by'] = message.author.name
-                        mute[serv][user.id]['expires'] = time.time() + temps
-                        mute[serv][user.id]['motif'] = motif
-                        with open("mute.json", "w") as f : f.write(json.dumps(mute, indent=4))
-                        if muteRole : 
-                            try : await client.add_roles(user, muteRole)
-                            except discord.errors.Forbidden : await client.send_message(message.channel, "Je n'ai pas le droit de lui ajouter le rôle "+muteRole.mention+" \N{LOUDLY CRYING FACE} (va taper un admin)")
-                        await client.add_reaction(message, u"\N{WHITE HEAVY CHECK MARK}")
-                        await client.delete_message(demande)
-                        await client.send_message(user, "Tu a été mute pendant " + args[1] + " par **" + message.author.name + "** pour le motif suivant : *" + motif + "*.")
-                    else :
-                        await client.send_message(message.channel, "Le mute a été annulé.")
-
-
-            elif modo in message.author.roles and cmd == "unmute" :
-                if len(message.mentions) != 1 : await cient.send_message(message.channel, usage(p, cmd))
-                else :
-                    with open("mute.json", "r") as f : mute = json.loads(f.read())
-                    if message.mention.id in mute[server.id] :
-                        del mute[server.id][message.mention.id]
-                        with open("mute.json", "w") as f : f.write(json.dumps(mute, indent=4))
-                    else : await cient.send_message(message.channel, "Cette personne n'est pas mute...")
-            """
-
-            if cmd == "youtube" or cmd in alias["youtube"] :
+            elif cmd == "youtube" or cmd in alias["youtube"] :
                  if len(args) == 0 : await client.send_message(message.channel, usage(p, cmd))
                  else :
                     recherche = getUrl("https://www.googleapis.com/youtube/v3/search?part=snippet&maxResults=1&q=" + quote_plus(arg) + "&key=" + secret["youtube-key"])["items"][0]["id"]
@@ -967,7 +886,10 @@ try :
                             channelId = recherche["channelId"]
                             data = getUrl("https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&id=" + channelId + "&key=" + secret["youtube-key"])["items"][0]
                             em = discord.Embed(title=data["snippet"]["title"], colour=0x00ff00)
-                            #em.set_image(url=data["snippet"]["thumbnails"]["high"]["url"])
+                            if "high" in data["snippet"]["thumbnails"] :
+                                em.set_thumbnail(url=data["snippet"]["thumbnails"]["high"]["url"])
+                            else :
+                                em.set_thumbnail(url=data["snippet"]["thumbnails"]["default"]["url"])
                             em.add_field(name="id :", value=data["id"], inline=True)
                             desc = data["snippet"]["description"]
                             if len(desc) < 1000 : em.add_field(name="description :", value=desc, inline=True)
@@ -980,12 +902,15 @@ try :
                                 em.add_field(name="nombre de vidéos :", value=joliStr(data["statistics"]["videoCount"]), inline=True)
                                 em.add_field(name="nombre de commentaires postés :", value=joliStr(data["statistics"]["commentCount"]), inline=True)
                                 await client.send_message(message.channel, embed=em)
-                                await client.send_message(message.channel, "https://www.youtube.com/channel/"+channelId)
+                                await client.send_message(message.channel, "<https://www.youtube.com/channel/"+channelId+">")
                         elif recherche["kind"] == "youtube#video" :
                             videoId = recherche["videoId"]
                             data = getUrl("https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics,contentDetails&id=" + videoId + "&key=" + secret["youtube-key"])["items"][0]
                             em = discord.Embed(title=data["snippet"]["title"], colour=0x00ff00)
-                            #em.set_image(url=data["snippet"]["thumbnails"]["high"]["url"])
+                            if "high" in data["snippet"]["thumbnails"] :
+                                em.set_thumbnail(url=data["snippet"]["thumbnails"]["high"]["url"])
+                            else :
+                                em.set_thumbnail(url=data["snippet"]["thumbnails"]["default"]["url"])
                             em.add_field(name="id :", value=data["id"], inline=True)
                             desc = data["snippet"]["description"]
                             if len(desc) < 1000 : em.add_field(name="description :", value=desc, inline=True)
@@ -1008,7 +933,7 @@ try :
                             if data["contentDetails"]["licensedContent"] : em.add_field(name="contenu sous licence :", value="oui", inline=True)
                             else : em.add_field(name="contenu sous licence :", value="non", inline=True)
                             await client.send_message(message.channel, embed=em)
-                            await client.send_message(message.channel, "https://www.youtube.com/watch?v="+videoId)
+                            await client.send_message(message.channel, "<https://www.youtube.com/watch?v="+videoId+">")
                         else : await client.send_message(message.channel, "Aucun résultat...")
 
             elif cmd == "code" :
@@ -1183,7 +1108,7 @@ try :
                 url = "http://tts.readspeaker.com/a/speak?key="+secret["tts-key"]+"&lang=fr_fr&voice=Louis&text=" + quote_plus(arg)
                 try :
                     with open("out.mp3", "wb") as f : f.write(urlopen(url).read())
-                    await client.send_message(message.channel, "out.mp3")
+                    await client.send_file(message.channel, "out.mp3")
                 except urllib.error.HTTPError as error :
                     if error.code == 503 : await client.send_message(message.channel, "Réessaie plus tard, je n'ai plus de crédit pour l'API \N{LOUDLY CRYING FACE}")
                     else : raise
