@@ -5,44 +5,38 @@ from urllib.request import urlopen, Request
 import json
 from calendar import timegm
 
-def joliStr(n):
-    if isinstance(n, float) :
-        ent, dec = str(n).split(".")
-        ent = int(ent)
-    elif isinstance(n, str) :
-        if "." in n :
-            ent, dec = n.split(".")
-            ent = int(ent)
-        else : ent, dec = int(n), ""
-    else : 
-        ent = n
-        dec = 0
+def joliStr(n, signed=False):
+    if type(n) == int :
+        ent, dec = n, None
+
+    elif type(n) == float :
+        ent, dec = int(n), str(n).split(".")[1]
+        
+    if type(n) == str:
+        t = n.split(".")
+        ent = int(t[0])
+        if len(t) == 2 and int(t[1]) > 0 : dec = t[1]
+        else : dec = None
+
 
     result = ""
-    while ent >= 1000:
-        ent, r = divmod(ent, 1000)
-        if ent > 0 and r < 100 :
-            if r < 10 : result = " 00" + str(r) + result
-            else : result = " 0" + str(r) + result
-        else : result = " " + str(r) + result
+    if ent == 0 : result = "0 "
+    while ent > 0:
+        result = str(ent%1000) + " " + result
+        ent //= 1000
 
-    result = str(ent) + result
+    if signed and n > 0:
+        result = "+" + result
 
     if dec :
-        result += "," 
-        i = 0
-        while i < len(dec):
-            try :
-                result += dec[i]
-                result += dec[i+1]
-                result += dec[i+2]
-                result += " "
-            except IndexError : pass
-            i += 3
-    return result
+        result = result[:-1]+"," 
+        for i in range(0, len(dec), 3):
+            result += dec[i:i+3] +" "
 
-def getUrl(url) :
-    req = Request(url, headers={'User-Agent': "Je n'suis pas un robot (enfin si mais un gentil ^^) !"})
+    return result[:-1]
+
+def getUrl(url, headers={'User-Agent': "Je n'suis pas un robot (enfin si mais un gentil ^^) !"}) :
+    req = Request(url, headers=headers)
     result = urlopen(req)
     result = unescape(result.read().decode("utf-8"))
     return json.loads(result)

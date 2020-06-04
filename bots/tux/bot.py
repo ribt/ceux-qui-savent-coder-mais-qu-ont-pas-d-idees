@@ -853,27 +853,26 @@ try :
                 await client.send_message(message.channel, "Mon code source (écrit en Python) comporte actuellement " + joliStr(l) + " lignes (" + s + ").")
 
             elif cmd == "crypto" :
+
                 if len(args) == 0 : await client.send_message(message.channel, usage(p, cmd))
                 else :
                     req = arg
-                    crypto = getUrl("https://api.coinmarketcap.com/v1/ticker/?limit=0")
-                    cid = None
-                    for i in crypto :
-                        if i["id"].lower() == req or i["name"].lower() == req or i["symbol"].lower() == req : cid = i["id"]
-                    if cid :
-                        data = getUrl("https://api.coinmarketcap.com/v1/ticker/" + cid + "/?convert=EUR")[0]
-                        txt = "**valeur :** " + joliStr(data["price_eur"]) + " € (" + joliStr(data["price_usd"]) + " $ ou encore " + joliStr(data["price_btc"]) + " \u20BF)\n"
-                        if data["percent_change_1h"][0] != "-" : data["percent_change_1h"] = "+" + joliStr(data["percent_change_1h"])
-                        txt += "**évolution depuis 1 h :** " + data["percent_change_1h"] + " %\n"
-                        if data["percent_change_24h"][0] != "-" : data["percent_change_24h"] = "+" + joliStr(data["percent_change_24h"])
-                        txt += "**évolution depuis 24 h :** " + data["percent_change_24h"] + " %\n"
-                        if data["percent_change_7d"][0] != "-" : data["percent_change_7d"] = "+" + joliStr(data["percent_change_7d"])
-                        txt +="**évolution depuis une semaine :** " + data["percent_change_7d"] + " %\n"
-                        txt += "**volume (24 h) :** " + joliStr(data["24h_volume_eur"]) + " €\n"
-                        if data["market_cap_eur"] : txt +="**capitalisation boursière :** " + joliStr(data["market_cap_eur"]) + " €"
-                        embed=discord.Embed(title=data["name"] + " (" + data["symbol"] + ")", description=txt, color=0x00ff00)
-                        await client.send_message(message.channel, embed=embed)
-                    else : await client.send_message(message.channel, "Je n'ai pas trouvé cette crypto-monnaie...")
+                    crypto = getUrl("https://pro-api.coinmarketcap.com/v1/cryptocurrency/listings/latest?start=1&limit=5000&convert=EUR", headers={"X-CMC_PRO_API_KEY":secret["coinmarketcap"]})
+                    if crypto["status"]["error_code"] != 0:
+                        await client.send_message(message.channel, "J'ai rencontré une erreur avec l'API : `"+crypto["status"]["error_message"]+"`.")
+                    else :
+                        data = None
+                        for i in crypto["data"] :
+                            if i["slug"].lower() == req or i["name"].lower() == req or i["symbol"].lower() == req :
+                                data = i
+                                break
+                        if data :
+                            embed=discord.Embed(title=data["name"] + " (" + data["symbol"] + ")", color=0x00ff00)
+                            data = data["quote"]["EUR"]
+                            embed.description = "**valeur :** {} €\n**évolution depuis 1 h :** {} %\n**évolution depuis 24 h :** {} %\n**évolution depuis une semaine :** {} %\n**volume (24 h) :** {} €\n**capitalisation boursière :** {} €".format(joliStr(data["price"]), joliStr(data["percent_change_1h"], signed=True), joliStr(data["percent_change_24h"], signed=True), joliStr(data["percent_change_7d"], signed=True), joliStr(data["volume_24h"]), joliStr(data["market_cap"]))
+                            await client.send_message(message.channel, embed=embed)
+                        else : await client.send_message(message.channel, "Je n'ai pas trouvé cette crypto-monnaie...")
+
 
             elif cmd == "user" or cmd in alias["user"] :
                 if len(message.mentions) == 1 :
