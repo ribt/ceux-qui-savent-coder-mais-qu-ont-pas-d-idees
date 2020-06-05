@@ -258,7 +258,7 @@ try :
             t = timegm(message.timestamp.timetuple())
             msg = message.content
             serv = message.server.id
-            logTxt = time.strftime('\n[%H:%M:%S] #', time.localtime(t)) + str(message.channel) + ' ' + str(message.author) + ' : ' + msg
+            logTxt = time.strftime('\n[%H:%M:%S] ', time.localtime(t)) + message.channel.id + ' ' + str(message.author) + ' : ' + msg
             if logFilename != time.strftime("log/%Y%m%d", time.localtime()): logFilename = time.strftime("log/%Y%m%d", time.localtime())
             with open(logFilename, "a") as f : f.write(logTxt)
         
