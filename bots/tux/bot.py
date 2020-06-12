@@ -223,6 +223,16 @@ try :
             
             if message.server == None : # MP
                 if message.content.startswith("!flag") :
+                    with open("score.json", "r") as f : score = json.loads(f.read())
+                    serv = discord.utils.get(client.servers, id="401667451189985280")
+                    member = serv.get_member(message.author.id)
+                    if member.id in score:
+                        for n in score[member.id]["reussis"]:
+                            role = discord.utils.get(serv.roles, name="défi-"+str(n))
+                            if not role in member.roles :
+                                await client.add_roles(member, role)
+                                await client.send_message(message.channel, "Woups, il te manquait le rôle du défi n°"+str(n)+" que tu as déjà réussi.")
+
                     args = message.content.split(" ")
                     if len(args) != 2: await client.send_message(message.channel, "Usage : `!flag <le_flag_d-un_defi>`.")
                     else : 
@@ -232,17 +242,15 @@ try :
                             n = flags[hashed]["defi"]
                             pts = flags[hashed]["points"]
                             userId = message.author.id
-                            with open("score.json", "r") as f : score = json.loads(f.read())
                             if not userId in score : score[userId] = {"points": 0, "reussis": []}
-                            if n in score[userId]["reussis"] : await client.send_message(message.author, "Tu as déjà réussi ce défi !")
+                            if n in score[userId]["reussis"] :
+                                await client.send_message(message.author, "Tu as déjà réussi ce défi !")
                             else :
                                 score[userId]["points"] += pts
                                 score[userId]["reussis"].append(n)
                                 with open("score.json", "w") as f : f.write(json.dumps(score, indent=4))
                                 
-                                serv = discord.utils.get(client.servers, id="401667451189985280")
                                 role = discord.utils.get(serv.roles, name="défi-"+str(n))
-                                member = discord.utils.find(lambda m: m.name == message.author.name, serv.members)
                                 await client.add_roles(member, role)
 
                                 await client.send_message(message.author, 'Ceci est bien le flag du défi n°' + str(n) + ", tu gagnes " + str(pts) + " points ! Tu peux désormais accéder au channel solutions pour regarder comment les autres ont fait et pour poster ta solution.")
@@ -1030,8 +1038,8 @@ try :
                     await client.send_message(message.channel, "Une erreur s'est produite, vérifiez vos arguments...")
                     return
                 if n < 0 :
-                	await client.send_message(message.channel, "Désolé je ne sais pas convertir les nombres négatifs \N{CONFUSED FACE}")
-                	return
+                    await client.send_message(message.channel, "Désolé je ne sais pas convertir les nombres négatifs \N{CONFUSED FACE}")
+                    return
                 b = str(bin(n))[2:]
 
                 em = discord.Embed(title="Convertisseur de base", colour=0x00ff00)
