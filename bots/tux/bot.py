@@ -29,7 +29,7 @@ from constantes import fast, aide_fast, caracteres, pendu, ytCategories
 from fonctions import joliStr, getUrl, p4Affichage, p4Winner, flatten
 
 commandes = {"ascii":      ["<texte>",                                       "Je te convertis ton texte (ASCII) en d'autres bases."],
-             "avatar":     ["[@quelqu'un]",                                  "Je t'envois ta photo de profil (ou celle de l'utilisateur mentionné) convertie en PNG spécialemnt pour toi !"],
+             "avatar":     ["[@quelqu'un]",                                  "Je t'envois ta photo de profil (ou celle de l'utilisateur mentionné) convertie en PNG spécialement pour toi !"],
              "base32":     ["<base32>",                                      "Je te convertis ton texte (base32) en d'autres bases."],
              "base64":     ["<base64>",                                      "Je te convertis ton texte (base64) en d'autres bases."],
              "base85":     ["<base85>",                                      "Je te convertis ton texte (base85) en d'autres bases."],
@@ -1308,14 +1308,7 @@ try :
                     await client.send_message(message.channel, "\N{HEAVY BLACK HEART} Il y a **"+str(prct)+" %** d'amour entre **"+message.mentions[0].name+"** et **"+message.mentions[1].name+"** \N{HEAVY BLACK HEART}")
 
             elif cmd == "ljdc" :
-                source = unescape(urlopen("https://lesjoiesducode.fr/").read().decode("utf-8"))
-                """
-                soup = BeautifulSoup(source, "html.parser")
-                randomUrl = re.search('href="([^"]+)"', str(soup.find("i", {"class": "fas fa-random"}).parent)).group(1)
-                """
-                for i in range(10) :
-                    randomUrl = random.choice(re.findall('"https://lesjoiesducode.fr/[a-z-]+"', source))[1:-1]
-                    source = unescape(urlopen(randomUrl).read().decode("utf-8"))
+                source = unescape(urlopen("https://lesjoiesducode.fr/random").read().decode("utf-8"))
                 soup = BeautifulSoup(source, "html.parser")
                 commentaire = soup.find("h1", {"class": "blog-post-title"}).string
                 fileUrl = re.search('<object[^>]*data="([^"]+)"', str(soup.find("div", {"class": "blog-post-content"}))).group(1)
