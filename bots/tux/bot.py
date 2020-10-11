@@ -1311,7 +1311,7 @@ try :
                 source = unescape(urlopen("https://lesjoiesducode.fr/random").read().decode("utf-8"))
                 soup = BeautifulSoup(source, "html.parser")
                 commentaire = soup.find("h1", {"class": "blog-post-title"}).string
-                fileUrl = re.search('<object[^>]*data="([^"]+)"', str(soup.find("div", {"class": "blog-post-content"}))).group(1)
+                fileUrl = soup.find("div", {"class": "blog-post-content"}).p.object["data"]
                 em = discord.Embed(title="les_joies_du_code();", description=commentaire, colour=0x00ff00)
                 em.set_image(url=fileUrl)
                 await client.send_message(message.channel, embed=em)
